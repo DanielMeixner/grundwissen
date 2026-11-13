@@ -10,7 +10,12 @@ export function parseQuestion(file: string, source: string): Question {
   if (document.errors.length) {
     throw new Error(`${file}: YAML: ${document.errors.map(error => error.message).join('; ')}`);
   }
-  const metadata = questionMetadataSchema.safeParse(document.toJS());
+  let yaml: unknown;
+  try { yaml = document.toJS(); }
+  catch (error) {
+    throw new Error(`${file}: YAML: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  const metadata = questionMetadataSchema.safeParse(yaml);
   if (!metadata.success) {
     throw new Error(`${file}: ${metadata.error.issues.map(issue => `${issue.path.join('.')}: ${issue.message}`).join('; ')}`);
   }
