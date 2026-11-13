@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
-import { decodeSnapshot } from '../../src/domain/engine';
+import { decodeSnapshot, freshSnapshot } from '../../src/domain/engine';
 import { validateBank } from '../../src/domain/question';
 
 const bank = validateBank(JSON.parse(readFileSync('src/generated/questions.json', 'utf8')));
@@ -32,10 +32,133 @@ async function choose(page: Page, correct: boolean) {
 }
 
 async function setRange(page: Page, start: number, end: number) {
+  if (!await page.getByLabel('Von Jahr', { exact: true }).isVisible()) {
+    await page.locator('.history-filter-disclosure > summary').click();
+  }
   await page.getByLabel('Von Jahr', { exact: true }).fill(String(start));
   await page.getByLabel('Bis Jahr', { exact: true }).fill(String(end));
   await page.getByRole('button', { name: 'Filter anwenden', exact: true }).click();
 }
+
+async function openSpecimen(page: Page, questionId: string) {
+  const question = bank.find(question => question.id === questionId);
+  if (!question) throw new Error(`Missing mobile layout specimen: ${questionId}`);
+  const state = freshSnapshot(bank);
+  if (!state.currentAttempt) throw new Error('Expected an initial attempt');
+  state.currentAttempt = {
+    ...state.currentAttempt, questionId: question.id, contentRevision: question.contentRevision,
+    choiceIds: question.choices.map(choice => choice.id),
+  };
+  state.queue = state.queue.filter(id => id !== question.id);
+  await page.addInitScript(({ storageKey, raw }) => {
+    if (localStorage.getItem(storageKey) === null) localStorage.setItem(storageKey, raw);
+  }, { storageKey: key, raw: JSON.stringify(state) });
+  await page.goto('./');
+  await expect(page.getByRole('heading', { name: question.prompt, exact: true })).toBeVisible();
+  return question;
+}
+
+for (const viewport of [
+  { width: 320, height: 568 }, { width: 375, height: 667 },
+  { width: 390, height: 844 }, { width: 430, height: 932 },
+]) {
+  test(`mobile quiz is readable and starts immediately at ${viewport.width}px`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await openSpecimen(page, 'gw-18-001');
+    const geometry = await page.evaluate(() => {
+      const header = document.querySelector('.history-header')!.getBoundingClientRect();
+      const practice = document.querySelector('.history-practice')!.getBoundingClientRect();
+      const title = document.querySelector('.history-question-title')!;
+      const answer = document.querySelector('.history-choice-text')!;
+      const submit = document.querySelector('.history-question button[type="submit"]')!;
+      return {
+        top: practice.top + scrollY, headerBottom: header.bottom + scrollY,
+        submitBottom: submit.getBoundingClientRect().bottom + scrollY,
+        titleFont: parseFloat(getComputedStyle(title).fontSize),
+        answerFont: parseFloat(getComputedStyle(answer).fontSize),
+        buttonFont: parseFloat(getComputedStyle(submit).fontSize),
+        overflow: document.documentElement.scrollWidth > innerWidth,
+        targetHeights: [...document.querySelectorAll('.history-choice, .history-disclosure > summary, .history-question .history-button')]
+          .map(element => element.getBoundingClientRect().height),
+      };
+    });
+    expect(geometry.top).toBeLessThanOrEqual(geometry.headerBottom + 24);
+    expect(geometry.titleFont).toBeGreaterThanOrEqual(22);
+    expect(geometry.answerFont).toBeGreaterThanOrEqual(18);
+    expect(geometry.buttonFont).toBeGreaterThanOrEqual(16);
+    expect(geometry.overflow).toBe(false);
+    expect(Math.min(...geometry.targetHeights)).toBeGreaterThanOrEqual(44);
+    if (viewport.width === 390) expect(geometry.submitBottom).toBeLessThanOrEqual(viewport.height);
+    await expect(page.locator('.history-disclosure[open]')).toHaveCount(0);
+    const previousScroll = await page.evaluate(() => scrollY);
+    await page.getByRole('radio').first().check();
+    expect(await page.evaluate(() => scrollY)).toBe(previousScroll);
+    await choose(page, true);
+    await page.reload();
+    await expect(page.getByRole('heading', { name: 'Richtig beantwortet.', exact: true })).toBeVisible();
+    expect((await snapshot(page)).lifetimeXp).toBe(10);
+  });
+}
+
+test('mobile disclosures preserve filters, journey, score and reset access', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openSpecimen(page, 'gw-18-001');
+  const filter = page.locator('.history-filter-disclosure > summary');
+  await filter.focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByLabel('Von Jahr', { exact: true })).toBeVisible();
+  const initialRange = (await snapshot(page)).range;
+  await page.getByRole('button', { name: /19. Jahrhundert/ }).click();
+  expect((await snapshot(page)).range).toEqual(initialRange);
+  await page.getByRole('button', { name: 'Filter anwenden', exact: true }).click();
+  await expect.poll(async () => (await snapshot(page)).range).toEqual({ startYear: 1801, endYear: 1900 });
+  await filter.click();
+  await page.locator('.history-journey-disclosure > summary').click();
+  await expect(page.getByRole('list', { name: 'Meilensteine in Schritten von 100 XP' })).toBeVisible();
+  await page.getByText('Fortschritt im Zeitraum', { exact: true }).click();
+  await expect(page.getByRole('region', { name: 'Dein Überblick für 1801–1900' })).toBeVisible();
+  await page.getByText('Über Grundwissen', { exact: true }).click();
+  await expect(page.getByText('Entdecke Zusammenhänge statt nur Jahreszahlen.', { exact: false })).toBeVisible();
+  await page.getByText('Speicher & Zurücksetzen', { exact: true }).click();
+  await page.getByRole('button', { name: 'Fortschritt zurücksetzen', exact: true }).click();
+  await page.getByRole('button', { name: 'Abbrechen', exact: true }).click();
+  expect((await snapshot(page)).range).toEqual({ startYear: 1801, endYear: 1900 });
+  const first = Math.min(...bank.map(question => question.startYear));
+  const last = Math.max(...bank.map(question => question.endYear));
+  const gap = Array.from({ length: last - first + 1 }, (_, index) => first + index)
+    .find(year => !bank.some(question => question.startYear <= year && question.endYear >= year));
+  if (gap === undefined) throw new Error('Expected a gap year for the mobile filter scenario');
+  await setRange(page, gap, gap);
+  await page.locator('.history-filter-disclosure > summary').click();
+  await expect(page.getByLabel('Von Jahr', { exact: true })).not.toBeVisible();
+  await page.getByRole('link', { name: 'Zum Zeitfilter', exact: true }).click();
+  await expect(page.getByLabel('Von Jahr', { exact: true })).toBeVisible();
+});
+
+test('long mobile context and resize keep reveal state and desktop composition', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 568 });
+  await page.emulateMedia({ reducedMotion: 'reduce', colorScheme: 'dark' });
+  await openSpecimen(page, 'gw-19-025');
+  await choose(page, false);
+  await page.getByRole('button', { name: 'Fakt & Einordnung ansehen', exact: true }).click();
+  await expect(page.locator('.history-context')).toBeVisible();
+  expect(await page.locator('.history-context').evaluate(element => parseFloat(getComputedStyle(element).fontSize))).toBeGreaterThanOrEqual(18);
+  expect(await page.locator('.history-backside').evaluate(element => getComputedStyle(element).animationName)).toBe('none');
+  await page.setViewportSize({ width: 1280, height: 1000 });
+  await expect(page.locator('.history-disclosure[open]')).toHaveCount(5);
+  await expect(page.locator('.history-backside')).toBeVisible();
+  const desktop = await page.evaluate(() => ({
+    columns: getComputedStyle(document.querySelector('.history-layout')!).gridTemplateColumns.split(' ').length,
+    sidebarLeft: document.querySelector('.history-sidebar')!.getBoundingClientRect().left,
+    questionLeft: document.querySelector('.history-question')!.getBoundingClientRect().left,
+  }));
+  expect(desktop.columns).toBe(2);
+  expect(desktop.sidebarLeft).toBeLessThan(desktop.questionLeft);
+  await page.setViewportSize({ width: 320, height: 568 });
+  await expect(page.locator('.history-backside')).toBeVisible();
+  await page.addStyleTag({ content: 'html { font-size: 200%; }' });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+});
 
 test('actual answer, contextual reveal, reload and new attempt preserve atomic scoring', async ({ page }) => {
   await page.goto('./');

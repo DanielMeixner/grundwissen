@@ -21,6 +21,8 @@ npm run test:e2e
 
 ## Spielregeln und Fortschritt
 
+Auf kleinen Bildschirmen steht die aktuelle Frage direkt unter dem kompakten Header. Antworttexte und Erklaerungen sind groesser; Zeitraum, Lernreise, Fortschrittsdetails und Speicheroptionen lassen sich bei Bedarf aufklappen. Ein vorgeschlagener Zeitraum wird weiterhin erst mit „Filter anwenden“ aktiv. Auf dem Desktop bleibt die vollstaendige Uebersicht sichtbar.
+
 Zeitraeume sind ganzzahlige, inklusive Intervalle. Ein Ereignis kommt vor, wenn sein Intervall den gewaehlten Zeitraum ueberschneidet. Ungueltige Eingaben erzeugen eine Meldung; ein leerer Zeitraum bleibt leer. Jahrhundertvorgaben sind 1701–1800, 1801–1900, 1901–2000 und 2001 bis zum verfassten Endjahr.
 
 Jede passende Frage erscheint einmal pro Runde. Neue beziehungsweise inhaltlich geaenderte Fragen kommen zuerst, danach zuletzt falsch, danach zuletzt richtig beantwortete Fragen; jede Gruppe wird gemischt. Ein unmittelbarer Rundenwechsel wiederholt die letzte Frage nur, wenn keine Alternative existiert. Die Vermeidung eines solchen Grenzwiederholers hat fuer die erste Frage Vorrang vor der Gruppenprioritaet.

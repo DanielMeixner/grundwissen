@@ -76,6 +76,19 @@ function useTheme() {
   }, []);
 }
 
+function useCompactLayout() {
+  const [compact, setCompact] = useState(() =>
+    typeof window !== 'undefined' && window.matchMedia('(max-width: 720px)').matches);
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 720px)');
+    const update = () => setCompact(media.matches);
+    update();
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
+  return compact;
+}
+
 interface RangeFilterProps {
   range: YearRange;
   bounds: YearRange;
@@ -392,7 +405,87 @@ function LocalProgress({ onReset }: { onReset: () => void }) {
 
 export function HistoryApp(props: HistoryAppProps) {
   useTheme();
+  const compact = useCompactLayout();
+  const filterRef = useRef<HTMLDetailsElement>(null);
   const { xp, attemptedCount, latestCorrectCount, totalQuestions, range, availableYearBounds, question, storageNotice, error } = props;
+  const learningNote = (
+    <div className="history-learning-note">
+      <span aria-hidden="true">↳</span>
+      <p><strong>Mehr als richtig oder falsch.</strong> Nach jeder Antwort findest du den historischen Fakt,
+        seine Einordnung und Quellen zum Weiterlesen – auch wenn du richtig liegst.</p>
+    </div>
+  );
+  const intro = (
+    <details key="intro" className="history-disclosure history-about-disclosure" open={!compact}>
+      <summary>Über Grundwissen</summary>
+      <section className="history-intro" aria-labelledby="history-page-title">
+        <div>
+          <span className="history-eyebrow">Deutsche Geschichte · ab 1701</span>
+          <h1 id="history-page-title">Ein Blick zurück.<br /><span>Ein Schritt nach vorn.</span></h1>
+          <p>Entdecke Zusammenhänge statt nur Jahreszahlen. Eine Frage nach der anderen, in deinem eigenen Tempo.</p>
+        </div>
+        <div className="history-intro-detail" aria-hidden="true">
+          <span>VERSTEHEN</span><div className="history-line-art"><i /><i /><i /><i /></div><span>WEITERDENKEN</span>
+        </div>
+      </section>
+      {compact && learningNote}
+    </details>
+  );
+  const notices = (
+    <div key="notices">
+      {storageNotice && <div className="history-notice" role="status"><strong>Lokaler Speicher</strong><p>{storageNotice}</p></div>}
+      {error && <div className="history-notice history-error" role="alert"><strong>Etwas ist schiefgegangen</strong><p>{error}</p></div>}
+    </div>
+  );
+  const stats = (
+    <details key="stats" className="history-disclosure" open={!compact}>
+      <summary>Fortschritt im Zeitraum</summary>
+      <section className="history-stats" aria-label={`Dein Überblick für ${yearLabel(range)}`}>
+        <div><span className="history-stat-value">{formatNumber(xp)} <small>XP</small></span><span>Übung insgesamt</span></div>
+        <div><span className="history-stat-value">{formatNumber(attemptedCount)} <small>/ {formatNumber(totalQuestions)}</small></span><span>Verschiedene Fragen beantwortet</span></div>
+        <div><span className="history-stat-value">{formatNumber(latestCorrectCount)}</span><span>Zuletzt richtig beantwortet</span></div>
+        <p>Fragenzahlen gelten für {yearLabel(range)}. „Zuletzt richtig“ beschreibt die letzte Antwort je Frage, keine dauerhafte Beherrschung.</p>
+      </section>
+    </details>
+  );
+  const layout = (
+    <div key="layout" className="history-layout">
+      <div id="history-practice" className="history-practice" tabIndex={-1}>
+        <div className="history-practice-heading">
+          <h2>Dein nächster Gedankenschritt</h2>
+          <span>{yearLabel(range)}</span>
+        </div>
+        {question && props.phase !== 'empty' ? (
+          <QuestionCard key={`${question.id}-${question.choices.map((choice) => choice.id).join('-')}`} {...props} question={question} />
+        ) : (
+          <section className="history-panel history-empty" aria-labelledby="history-empty-title">
+            <span className="history-empty-symbol" aria-hidden="true">⌕</span>
+            <h2 id="history-empty-title">{error ? 'Die Frage konnte nicht geladen werden.' : 'Hier gibt es gerade keine Frage.'}</h2>
+            <p>{error ? 'Beachte die Fehlermeldung oben. Du kannst den Zeitraum bewusst neu anwenden.' : `Für ${yearLabel(range)} ist keine Frage verfügbar. Wähle einen anderen Zeitraum und wende den Filter an.`}</p>
+            <a className="history-button history-button-secondary" href="#history-time-filter"
+              onClick={() => { if (filterRef.current) filterRef.current.open = true; }}>Zum Zeitfilter</a>
+          </section>
+        )}
+        {!compact && learningNote}
+      </div>
+      <aside className="history-sidebar">
+        <details ref={filterRef} className="history-disclosure history-filter-disclosure" open={!compact}>
+          <summary>Zeitraum: {yearLabel(range)}</summary>
+          <RangeFilter range={range} bounds={availableYearBounds} onApply={props.onRangeChange} />
+        </details>
+        <details className="history-disclosure history-journey-disclosure" open={!compact}>
+          <summary>Deine Lernreise</summary>
+          <Journey xp={xp} />
+        </details>
+      </aside>
+    </div>
+  );
+  const local = (
+    <details key="local" className="history-disclosure history-local-disclosure" open={!compact}>
+      <summary>Speicher & Zurücksetzen</summary>
+      <LocalProgress onReset={props.onResetProgress} />
+    </details>
+  );
   return (
     <div className="history-app">
       <a className="history-skip-link" href="#history-practice">Zur aktuellen Frage</a>
@@ -405,52 +498,8 @@ export function HistoryApp(props: HistoryAppProps) {
         <div className="history-xp-pill"><span aria-hidden="true">✦</span> {formatNumber(xp)} XP</div>
       </header>
       <main id="history-main" className="history-main">
-        <section className="history-intro" aria-labelledby="history-page-title">
-          <div>
-            <span className="history-eyebrow">Deutsche Geschichte · ab 1701</span>
-            <h1 id="history-page-title">Ein Blick zurück.<br /><span>Ein Schritt nach vorn.</span></h1>
-            <p>Entdecke Zusammenhänge statt nur Jahreszahlen. Eine Frage nach der anderen, in deinem eigenen Tempo.</p>
-          </div>
-          <div className="history-intro-detail" aria-hidden="true">
-            <span>VERSTEHEN</span><div className="history-line-art"><i /><i /><i /><i /></div><span>WEITERDENKEN</span>
-          </div>
-        </section>
-        {storageNotice && <div className="history-notice" role="status"><strong>Lokaler Speicher</strong><p>{storageNotice}</p></div>}
-        {error && <div className="history-notice history-error" role="alert"><strong>Etwas ist schiefgegangen</strong><p>{error}</p></div>}
-        <section className="history-stats" aria-label={`Dein Überblick für ${yearLabel(range)}`}>
-          <div><span className="history-stat-value">{formatNumber(xp)} <small>XP</small></span><span>Übung insgesamt</span></div>
-          <div><span className="history-stat-value">{formatNumber(attemptedCount)} <small>/ {formatNumber(totalQuestions)}</small></span><span>Verschiedene Fragen beantwortet</span></div>
-          <div><span className="history-stat-value">{formatNumber(latestCorrectCount)}</span><span>Zuletzt richtig beantwortet</span></div>
-          <p>Fragenzahlen gelten für {yearLabel(range)}. „Zuletzt richtig“ beschreibt die letzte Antwort je Frage, keine dauerhafte Beherrschung.</p>
-        </section>
-        <div className="history-layout">
-          <aside className="history-sidebar">
-            <RangeFilter range={range} bounds={availableYearBounds} onApply={props.onRangeChange} />
-            <Journey xp={xp} />
-          </aside>
-          <div id="history-practice" className="history-practice" tabIndex={-1}>
-            <div className="history-practice-heading">
-              <h2>Dein nächster Gedankenschritt</h2>
-              <span>{yearLabel(range)}</span>
-            </div>
-            {question && props.phase !== 'empty' ? (
-              <QuestionCard key={`${question.id}-${question.choices.map((choice) => choice.id).join('-')}`} {...props} question={question} />
-            ) : (
-              <section className="history-panel history-empty" aria-labelledby="history-empty-title">
-                <span className="history-empty-symbol" aria-hidden="true">⌕</span>
-                <h2 id="history-empty-title">{error ? 'Die Frage konnte nicht geladen werden.' : 'Hier gibt es gerade keine Frage.'}</h2>
-                <p>{error ? 'Beachte die Fehlermeldung oben. Du kannst den Zeitraum bewusst neu anwenden.' : `Für ${yearLabel(range)} ist keine Frage verfügbar. Wähle einen anderen Zeitraum und wende den Filter an.`}</p>
-                <a className="history-button history-button-secondary" href="#history-time-filter">Zum Zeitfilter</a>
-              </section>
-            )}
-            <div className="history-learning-note">
-              <span aria-hidden="true">↳</span>
-              <p><strong>Mehr als richtig oder falsch.</strong> Nach jeder Antwort findest du den historischen Fakt,
-                seine Einordnung und Quellen zum Weiterlesen – auch wenn du richtig liegst.</p>
-            </div>
-          </div>
-        </div>
-        <LocalProgress onReset={props.onResetProgress} />
+        {compact && <h1 className="history-visually-hidden">Grundwissen: Geschichte lernen</h1>}
+        {compact ? [notices, layout, stats, intro, local] : [intro, notices, stats, layout, local]}
       </main>
       <footer className="history-footer"><span>grundwissen · Eine offene Lernreise</span><span>Keine Uhr. Keine Leben. Kein Endspiel.</span></footer>
     </div>
