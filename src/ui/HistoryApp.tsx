@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
+import { QuestionText } from './QuestionText';
 import './history.css';
 
 export interface YearRange {
@@ -308,9 +309,9 @@ function QuestionCard(props: HistoryAppProps & { question: HistoryQuestion }) {
         <div className="history-backside">
           <span className="history-eyebrow">Historischer Fakt</span>
           <h3 tabIndex={-1} ref={factRef}>Wissen mit Zusammenhang</h3>
-          <p className="history-fact">{question.fact}</p>
+          <p className="history-fact"><QuestionText text={question.fact} allowedUrls={question.sources.map(source => source.url)} /></p>
           <h4>Einordnung</h4>
-          <p className="history-context">{question.explanation}</p>
+          <p className="history-context"><QuestionText text={question.explanation} allowedUrls={question.sources.map(source => source.url)} /></p>
           <h4>Quellen zum Weiterlesen</h4>
           <ul className="history-sources">
             {question.sources.map((source, index) => (
@@ -364,7 +365,8 @@ function LocalProgress({ onReset }: { onReset: () => void }) {
     <section className="history-local" aria-labelledby="history-local-title">
       <div>
         <h2 id="history-local-title">Dein Fortschritt bleibt in diesem Browser</h2>
-        <p>Kein Konto, keine Synchronisierung. Wenn du Browserdaten löschst, kann dein Fortschritt verloren gehen.
+        <p>Kein Konto, kein Abgleich zwischen Geräten. Dein Stand gehört zu diesem Browserprofil und dieser Webadresse.
+          Wenn du Browserdaten löschst, kann dein Fortschritt verloren gehen.
           Eine Anmeldung ist noch nicht verfügbar. Gelöschte Daten lassen sich hier nicht wiederherstellen.</p>
       </div>
       <button ref={resetRef} type="button" className="history-button history-button-quiet"
