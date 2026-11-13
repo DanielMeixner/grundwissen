@@ -180,6 +180,25 @@ describe('atomic browser profile persistence', () => {
     expect(session.getSnapshot().snapshot.lifetimeXp).toBe(20);
     expect(storage.raw).toBe(raw);
   });
+  it('prevents old and new bank tabs from rewriting each other in a storage-event loop', async () => {
+    const storage = new MemoryStorage();
+    const locks = new SerialLocks();
+    const env = environment();
+    const bank = questions(2);
+    const oldTab = new ProgressStore(bank, storage, locks, env);
+    await oldTab.initialize();
+    const updated = [{ ...bank[0], contentRevision: 'updated-content' }, bank[1]];
+    const newTab = new ProgressStore(updated, storage, locks, env);
+    await newTab.initialize();
+    const newRaw = storage.raw;
+    await oldTab.synchronize();
+    expect(oldTab.getSnapshot().notice).toContain('andere Fragenfassung');
+    expect(storage.raw).toBe(newRaw);
+    await oldTab.dispatch({ type: 'answer', attemptId: oldTab.getSnapshot().snapshot.currentAttempt!.id, choiceId: 'a' });
+    expect(storage.raw).toBe(newRaw);
+    await newTab.synchronize();
+    expect(newTab.getSnapshot().notice).toBeNull();
+  });
   it('rejects invalid ranges without changing stored progress and requires export consent', async () => {
     const storage = new MemoryStorage();
     const store = new ProgressStore(questions(1), storage, new SerialLocks(), environment());

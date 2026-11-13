@@ -39,6 +39,7 @@ const attemptSchema = z.object({
 });
 const snapshotFields = {
   profileId: z.uuid(),
+  bankRevision: revision,
   revision: nonnegative,
   lifetimeXp: nonnegative.refine(value => value % 10 === 0, 'Invalid XP total'),
   progress: z.record(z.string(), aggregateSchema),
@@ -75,7 +76,8 @@ export const snapshotSchema = z.object({
     }
   }
 });
-const versionOneSchema = z.object({ ...snapshotFields, version: z.literal(1) }).strict();
+const { bankRevision: _bankRevision, ...versionOneFields } = snapshotFields;
+const versionOneSchema = z.object({ ...versionOneFields, version: z.literal(1) }).strict();
 export type Snapshot = z.infer<typeof snapshotSchema>;
 export type Attempt = NonNullable<Snapshot['currentAttempt']>;
 export type Random = () => number;
@@ -89,7 +91,7 @@ export function decodeSnapshot(raw: string): Snapshot {
   const value: unknown = JSON.parse(raw);
   if (typeof value === 'object' && value !== null && 'version' in value && value.version === 1) {
     const old = versionOneSchema.parse(value);
-    return snapshotSchema.parse({ ...old, version: 2, scoringPolicy: SCORING_POLICY });
+    return snapshotSchema.parse({ ...old, version: 2, scoringPolicy: SCORING_POLICY, bankRevision: 'legacy' });
   }
   return snapshotSchema.parse(value);
 }
@@ -101,6 +103,11 @@ export function shuffled<T>(values: readonly T[], random: Random): T[] {
     [result[index], result[other]] = [result[other], result[index]];
   }
   return result;
+}
+
+function bankRevision(bank: Question[]): string {
+  return JSON.stringify(bank.map(question => [question.id, question.contentRevision])
+    .sort(([first], [second]) => first.localeCompare(second)));
 }
 
 export function scheduleRound(
@@ -147,6 +154,7 @@ export function freshSnapshot(bank: Question[], env = browserEnvironment): Snaps
     version: 2,
     scoringPolicy: SCORING_POLICY,
     profileId: env.uuid(),
+    bankRevision: bankRevision(bank),
     revision: 0,
     lifetimeXp: 0,
     progress: {},
@@ -160,15 +168,24 @@ export function freshSnapshot(bank: Question[], env = browserEnvironment): Snaps
 
 export function reconcileSnapshot(snapshot: Snapshot, bank: Question[], env = browserEnvironment): Snapshot {
   const questions = eligibleQuestions(bank, snapshot.range);
+  const currentBankRevision = bankRevision(bank);
+  const bankChanged = snapshot.bankRevision !== currentBankRevision;
+  const base = { ...snapshot, bankRevision: currentBankRevision };
   const ids = new Set(questions.map(question => question.id));
   const queue = snapshot.queue.filter(id => ids.has(id));
   const attempt = snapshot.currentAttempt;
   const question = questions.find(question => question.id === attempt?.questionId);
   if (attempt && question && question.contentRevision === attempt.contentRevision &&
       attempt.choiceIds.every(id => question.choices.some(choice => choice.id === id))) {
-    return { ...snapshot, queue: queue.filter(id => id !== attempt.questionId) };
+    return {
+      ...base,
+      queue: bankChanged
+        ? scheduleRound(questions.filter(question => question.id !== attempt.questionId),
+          snapshot.progress, attempt.questionId, env.random)
+        : queue.filter(id => id !== attempt.questionId),
+    };
   }
-  return startNext({ ...snapshot, queue: [], currentAttempt: null }, bank, env);
+  return startNext({ ...base, queue: [], currentAttempt: null }, bank, env);
 }
 
 export type Command =

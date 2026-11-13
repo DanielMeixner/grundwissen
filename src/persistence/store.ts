@@ -13,6 +13,8 @@ export type StoreView = { snapshot: Snapshot; notice: string | null };
 const SESSION_NOTICE = 'Nur diese Sitzung: Fortschritt wird nicht dauerhaft gespeichert.';
 const PRESERVED_NOTICE = 'Gespeicherte Daten sind beschaedigt oder stammen aus einer unbekannten Version. ' +
   'Sie bleiben unveraendert; bis zum bewussten Zuruecksetzen gilt nur diese Sitzung.';
+const UPDATED_BANK_NOTICE = 'Ein anderer Tab verwendet eine andere Fragenfassung. Bitte die Seite neu laden. ' +
+  'Der gemeinsame gespeicherte Stand wird von diesem Tab nicht ueberschrieben.';
 
 export class ProgressStore {
   private view: StoreView;
@@ -142,6 +144,10 @@ export class ProgressStore {
             this.sessionOnly(this.view.snapshot, PRESERVED_NOTICE);
             return;
           }
+          if (loaded.bankRevision !== this.view.snapshot.bankRevision) {
+            this.sessionOnly(reconcileSnapshot(loaded, this.bank, this.env), UPDATED_BANK_NOTICE);
+            return;
+          }
           const base = reconcileSnapshot(loaded, this.bank, this.env);
           const next = transition(base, command, this.bank, this.env);
           const snapshot = { ...next, revision: incrementRevision(base.revision) };
@@ -197,6 +203,10 @@ export class ProgressStore {
           try { snapshot = raw === null ? freshSnapshot(this.bank, this.env) : decodeSnapshot(raw); }
           catch {
             this.sessionOnly(this.view.snapshot, PRESERVED_NOTICE);
+            return;
+          }
+          if (snapshot.bankRevision !== this.view.snapshot.bankRevision) {
+            this.sessionOnly(reconcileSnapshot(snapshot, this.bank, this.env), UPDATED_BANK_NOTICE);
             return;
           }
           const reconciled = reconcileSnapshot(snapshot, this.bank, this.env);

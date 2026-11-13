@@ -105,6 +105,20 @@ describe('explicit attempt scoring', () => {
     expect(snapshot.range).toEqual({ startYear: 1750, endYear: 1799 });
     expect(reconcileSnapshot(snapshot, bank, env).currentAttempt).toBeNull();
   });
+  it('rebuilds a changed bank round while retaining unchanged answered feedback and XP', () => {
+    const bank = questions(4);
+    const env = environment();
+    let snapshot = freshSnapshot(bank, env);
+    snapshot = transition(snapshot, { type: 'answer', attemptId: snapshot.currentAttempt!.id, choiceId: 'a' }, bank, env);
+    const added = { ...bank[0], id: 'new-question' };
+    const revised = [...bank.slice(0, 3), added];
+    const reconciled = reconcileSnapshot(snapshot, revised, env);
+    expect(reconciled.currentAttempt).toEqual(snapshot.currentAttempt);
+    expect(reconciled.lifetimeXp).toBe(10);
+    expect(reconciled.bankRevision).not.toBe(snapshot.bankRevision);
+    expect(new Set(reconciled.queue)).toEqual(new Set(revised
+      .filter(question => question.id !== snapshot.currentAttempt!.questionId).map(question => question.id)));
+  });
   it('bounds audit history and rejects score/feedback corruption and unknown versions', () => {
     const bank = questions(1);
     const env = environment();
@@ -117,7 +131,7 @@ describe('explicit attempt scoring', () => {
     expect(snapshot.lifetimeXp).toBe(1050);
     expect(() => decodeSnapshot(JSON.stringify({ ...snapshot, lifetimeXp: 5 }))).toThrow();
     expect(() => decodeSnapshot(JSON.stringify({ ...snapshot, version: 99 }))).toThrow();
-    const { scoringPolicy: _, ...old } = snapshot;
+    const { scoringPolicy: _, bankRevision: __, ...old } = snapshot;
     expect(decodeSnapshot(JSON.stringify({ ...old, version: 1 })).lifetimeXp).toBe(1050);
     expect(decodeSnapshot(JSON.stringify(snapshot))).toEqual(snapshot as Snapshot);
   });
