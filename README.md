@@ -77,6 +77,8 @@ Danach folgen genau `## Frage`, `## Historischer Fakt` und `## Erklärung` in di
 
 Der Workflow `.github/workflows/pages.yml` prueft jeden Branch-Push sowie `workflow_dispatch` mit `npm ci`, Unit-Tests, Inhaltsvalidierung, Typecheck, Produktionsbuild und Chromium-Browsertests. Nur ein erfolgreicher Stand von `main` wird im Environment `github-pages` veroeffentlicht. Der Build hat ausschliesslich Leserechte; erst der getrennte Deploy-Job bekommt `pages: write` und `id-token: write`. Konkurrenzlaeufe werden serialisiert. Vite verwendet den Projektpfad `/grundwissen/`.
 
+Das Pages-Artefakt wird bereits im erfolgreichen Pruefjob hochgeladen und pro Buildversuch eindeutig benannt. Der Deploy-Job uebernimmt diesen Namen als Job-Ausgabe und laedt nicht erneut hoch; ein wiederholter Deploy erzeugt dadurch keine konkurrierenden Artefakte desselben Namens.
+
 Das Repository ist auf ausdruecklichen Wunsch oeffentlich; in Repository Settings → Pages ist **GitHub Actions** als Quelle eingerichtet. Die Anwendung wird unter [Grundwissen auf GitHub Pages](https://danielmeixner.github.io/grundwissen/) veroeffentlicht. Der erfolgreiche Deploy-Job bestaetigt die aktuelle Veroeffentlichung. Das gepruefte `dist/` bleibt zusaetzlich als Actions-Artefakt verfuegbar.
 
 Ein privates Repository benoetigt einen GitHub-Plan, der private Pages unterstuetzt. Die vorherige Einschraenkung des privaten Repositorys wurde durch die ausdruecklich freigegebene Umstellung auf oeffentliche Sichtbarkeit aufgehoben.
