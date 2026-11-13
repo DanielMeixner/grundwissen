@@ -107,6 +107,19 @@ test('keyboard-only answer flow works', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Nächste Frage', exact: true })).toBeEnabled();
 });
 
+test('actual context reflows at 320px with doubled text and reduced motion', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 900 });
+  await page.emulateMedia({ reducedMotion: 'reduce', colorScheme: 'dark' });
+  await page.goto('./');
+  await page.addStyleTag({ content: 'html { font-size: 200%; }' });
+  expect(await page.evaluate(() => document.documentElement.dataset.theme)).toBe('dark');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+  await choose(page, true);
+  await page.getByRole('button', { name: 'Fakt & Einordnung ansehen', exact: true }).click();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+  expect(await page.locator('.history-backside').evaluate(element => getComputedStyle(element).animationName)).toBe('none');
+});
+
 test('storage denial and missing Web Locks are visible session-only states', async ({ browser, baseURL }) => {
   for (const scenario of ['storage', 'locks']) {
     const context = await browser.newContext({ baseURL });
