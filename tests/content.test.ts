@@ -17,6 +17,7 @@ describe('content parser', () => {
     ['invalid date', 'verifiedOn: 2026-11-13', 'verifiedOn: 2026-02-30', 'verifiedOn'],
     ['missing field', 'difficulty: 1\n', '', 'difficulty'],
     ['duplicate choices', 'id: b', 'id: a', 'choices'],
+    ['duplicate choice text', 'Zweite Antwort', 'Erste Antwort', 'choices'],
     ['bad answer reference', 'correctChoiceId: a', 'correctChoiceId: x', 'correctChoiceId'],
     ['non-integer year', 'startYear: 1701', 'startYear: 1701.5', 'startYear'],
     ['reversed years', 'endYear: 1702', 'endYear: 1700', 'endYear'],

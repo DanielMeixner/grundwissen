@@ -47,6 +47,17 @@ describe('atomic browser profile persistence', () => {
     await secondReload.dispatch({ type: 'answer', attemptId: attempt.id, choiceId: 'a' });
     expect(secondReload.getSnapshot().snapshot.lifetimeXp).toBe(10);
   });
+  it('reflects radio selection immediately while keeping rewards behind the save', async () => {
+    const storage = new MemoryStorage();
+    const store = new ProgressStore(questions(1), storage, new SerialLocks(), environment());
+    await store.initialize();
+    const attemptId = store.getSnapshot().snapshot.currentAttempt!.id;
+    const pendingSelection = store.dispatch({ type: 'select', attemptId, choiceId: 'a' });
+    expect(store.getSnapshot().snapshot.currentAttempt!.selectedChoiceId).toBe('a');
+    expect(store.getSnapshot().snapshot.lifetimeXp).toBe(0);
+    await pendingSelection;
+    expect(decodeSnapshot(storage.raw!).currentAttempt!.selectedChoiceId).toBe('a');
+  });
   it('first answer wins across tabs and a stale next cannot skip an attempt', async () => {
     const storage = new MemoryStorage();
     const locks = new SerialLocks();

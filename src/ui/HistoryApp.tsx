@@ -364,7 +364,8 @@ function LocalProgress({ onReset }: { onReset: () => void }) {
     <section className="history-local" aria-labelledby="history-local-title">
       <div>
         <h2 id="history-local-title">Dein Fortschritt bleibt in diesem Browser</h2>
-        <p>Kein Konto, keine Synchronisierung. Wenn du Browserdaten löschst, kann dein Fortschritt verloren gehen.
+        <p>Kein Konto, kein Abgleich zwischen Geräten. Dein Stand gehört zu diesem Browserprofil und dieser Webadresse.
+          Wenn du Browserdaten löschst, kann dein Fortschritt verloren gehen.
           Eine Anmeldung ist noch nicht verfügbar. Gelöschte Daten lassen sich hier nicht wiederherstellen.</p>
       </div>
       <button ref={resetRef} type="button" className="history-button history-button-quiet"

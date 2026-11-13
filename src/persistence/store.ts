@@ -109,8 +109,13 @@ export class ProgressStore {
   }
 
   async dispatch(command: Command): Promise<void> {
+    if (!this.initialized) throw new Error('Progress store is not initialized');
+    if (command.type === 'select') {
+      // Selection is reversible; only answer/reward feedback must await the atomic save.
+      const optimistic = transition(this.view.snapshot, command, this.bank, this.env);
+      if (optimistic !== this.view.snapshot) this.publish(optimistic);
+    }
     return this.enqueue(async () => {
-      if (!this.initialized) throw new Error('Progress store is not initialized');
       if (command.type === 'reset' && this.storage && this.locks) {
         await this.recover();
         return;

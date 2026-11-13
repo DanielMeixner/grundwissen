@@ -1,9 +1,9 @@
 import { expect, test, type Page } from '@playwright/test';
-import rawBank from '../../src/generated/questions.json';
+import { readFileSync } from 'node:fs';
 import { decodeSnapshot } from '../../src/domain/engine';
 import { validateBank } from '../../src/domain/question';
 
-const bank = validateBank(rawBank);
+const bank = validateBank(JSON.parse(readFileSync('src/generated/questions.json', 'utf8')));
 const key = 'grundwissen.progress';
 
 async function snapshot(page: Page) {
@@ -48,7 +48,8 @@ test('actual answer, contextual reveal, reload and new attempt preserve atomic s
   await page.getByRole('button', { name: 'Fakt & Einordnung ansehen', exact: true }).click();
   await expect(page.getByText(question.fact, { exact: true })).toBeVisible();
   await expect(page.getByText(question.explanation, { exact: true })).toBeVisible();
-  await expect(page.getByRole('link', { name: question.sources[0].title, exact: true })).toHaveAttribute('href', question.sources[0].url);
+  await expect(page.getByRole('link', { name: `${question.sources[0].title} (öffnet in einem neuen Tab)`, exact: true }))
+    .toHaveAttribute('href', question.sources[0].url);
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Richtig beantwortet.', exact: true })).toBeVisible();
   const restored = await snapshot(page);
@@ -140,8 +141,31 @@ test('corrupt data remains untouched until confirmed reset', async ({ page }) =>
   expect(await page.evaluate(storageKey => localStorage.getItem(storageKey), key)).toBe(corrupted);
   await page.getByRole('button', { name: 'Fortschritt zurücksetzen', exact: true }).click();
   await page.getByRole('button', { name: 'Ja, Fortschritt löschen', exact: true }).click();
-  await expect.poll(async () => (await snapshot(page)).lifetimeXp).toBe(0);
   await expect(page.getByText(/Nur diese Sitzung:/)).toHaveCount(0);
+  expect((await snapshot(page)).lifetimeXp).toBe(0);
+});
+
+test('a singleton filter permits repeated fresh attempts to earn XP without inflating mastery', async ({ page }) => {
+  const first = Math.min(...bank.map(question => question.startYear));
+  const last = Math.max(...bank.map(question => question.endYear));
+  const year = Array.from({ length: last - first + 1 }, (_, index) => first + index)
+    .find(year => bank.filter(question => question.startYear <= year && question.endYear >= year).length === 1);
+  if (year === undefined) throw new Error('Expected a singleton year in the authored question bank');
+  await page.goto('./');
+  await setRange(page, year, year);
+  await expect.poll(async () => (await snapshot(page)).range).toEqual({ startYear: year, endYear: year });
+  await choose(page, true);
+  const firstAttempt = (await snapshot(page)).currentAttempt!;
+  await page.getByRole('button', { name: 'Fakt & Einordnung ansehen', exact: true }).click();
+  await page.getByRole('button', { name: 'Nächste Frage', exact: true }).click();
+  await expect.poll(async () => (await snapshot(page)).currentAttempt?.id).not.toBe(firstAttempt.id);
+  expect((await snapshot(page)).currentAttempt?.questionId).toBe(firstAttempt.questionId);
+  await expect(page.getByRole('radio')).toHaveCount(4);
+  await choose(page, true);
+  const state = await snapshot(page);
+  expect(state.lifetimeXp).toBe(20);
+  expect(state.progress[firstAttempt.questionId].attempts).toBe(2);
+  await expect(page.locator('.history-xp-pill')).toContainText('20 XP');
 });
 
 test('quota failure announces unsaved session progress without overwriting the prior snapshot', async ({ page }) => {
@@ -173,10 +197,20 @@ test('two real tabs cannot award the same attempt twice and synchronize feedback
   const answer = question.choices.find(choice => choice.id === question.correctChoiceId)!;
   await page.getByRole('radio', { name: answer.text, exact: true }).check();
   await expect(second.getByRole('radio', { name: answer.text, exact: true })).toBeChecked();
+  await page.evaluate(async () => {
+    let acquired: () => void = () => {};
+    const ready = new Promise<void>(resolve => { acquired = resolve; });
+    void navigator.locks.request('grundwissen.progress.write', () => new Promise<void>(resolve => {
+      window.addEventListener('release-history-test-lock', () => resolve(), { once: true });
+      acquired();
+    }));
+    await ready;
+  });
   await Promise.all([
-    page.getByRole('button', { name: 'Antwort prüfen', exact: true }).click({ force: true }),
-    second.getByRole('button', { name: 'Antwort prüfen', exact: true }).click({ force: true }),
+    page.getByRole('button', { name: 'Antwort prüfen', exact: true }).click(),
+    second.getByRole('button', { name: 'Antwort prüfen', exact: true }).click(),
   ]);
+  await page.evaluate(() => window.dispatchEvent(new Event('release-history-test-lock')));
   await expect(page.getByRole('heading', { name: 'Richtig beantwortet.', exact: true })).toBeVisible();
   await expect(second.getByRole('heading', { name: 'Richtig beantwortet.', exact: true })).toBeVisible();
   expect((await snapshot(page)).lifetimeXp).toBe(10);

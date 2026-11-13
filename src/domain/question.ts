@@ -33,6 +33,9 @@ export const questionMetadataSchema = z.object({
   if (new Set(value.choices.map(choice => choice.id)).size !== 4) {
     ctx.addIssue({ code: 'custom', path: ['choices'], message: 'Choice IDs must be unique (a, b, c, d)' });
   }
+  if (new Set(value.choices.map(choice => choice.text)).size !== 4) {
+    ctx.addIssue({ code: 'custom', path: ['choices'], message: 'Choice texts must be distinct' });
+  }
   if (!value.choices.some(choice => choice.id === value.correctChoiceId)) {
     ctx.addIssue({ code: 'custom', path: ['correctChoiceId'], message: 'Must reference an existing choice' });
   }
