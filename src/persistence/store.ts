@@ -117,7 +117,7 @@ export class ProgressStore {
       }
       if (!this.persistent) {
         const snapshot = transition(this.view.snapshot, command, this.bank, this.env);
-        this.publish({ ...snapshot, revision: snapshot.revision + 1 });
+        this.publish({ ...snapshot, revision: incrementRevision(snapshot.revision) });
         return;
       }
       let entered = false;
@@ -139,7 +139,7 @@ export class ProgressStore {
           }
           const base = reconcileSnapshot(loaded, this.bank, this.env);
           const next = transition(base, command, this.bank, this.env);
-          const snapshot = { ...next, revision: base.revision + 1 };
+          const snapshot = { ...next, revision: incrementRevision(base.revision) };
           try { this.storage!.setItem(STORAGE_KEY, JSON.stringify(snapshot)); }
           catch (error) {
             this.sessionOnly(snapshot, `Speichern fehlgeschlagen: ${errorText(error)}`);
@@ -212,6 +212,11 @@ export class ProgressStore {
 
 function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function incrementRevision(revision: number): number {
+  if (revision >= Number.MAX_SAFE_INTEGER) throw new Error('Die maximale Fortschrittsrevision ist erreicht.');
+  return revision + 1;
 }
 
 export function browserStore(bank: Question[]): ProgressStore {

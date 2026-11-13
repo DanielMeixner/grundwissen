@@ -73,6 +73,21 @@ describe('atomic browser profile persistence', () => {
     await second.dispatch({ type: 'answer', attemptId: newAttempt.id, choiceId: 'a' });
     expect(decodeSnapshot(storage.raw!).lifetimeXp).toBe(20);
   });
+  it('does not award XP when the first of two conflicting tab answers is wrong', async () => {
+    const storage = new MemoryStorage();
+    const locks = new SerialLocks();
+    const env = environment();
+    const first = new ProgressStore(questions(1), storage, locks, env);
+    const second = new ProgressStore(questions(1), storage, locks, env);
+    await Promise.all([first.initialize(), second.initialize()]);
+    const attemptId = first.getSnapshot().snapshot.currentAttempt!.id;
+    await Promise.all([
+      first.dispatch({ type: 'answer', attemptId, choiceId: 'b' }),
+      second.dispatch({ type: 'answer', attemptId, choiceId: 'a' }),
+    ]);
+    expect(decodeSnapshot(storage.raw!).lifetimeXp).toBe(0);
+    expect(second.getSnapshot().snapshot.currentAttempt!.selectedChoiceId).toBe('b');
+  });
   it.each(['{broken', '{"version":99,"valuable":"preserve me"}'])(
     'preserves corrupt or unrecognized storage until explicit reset: %s', async raw => {
       const storage = new MemoryStorage();
