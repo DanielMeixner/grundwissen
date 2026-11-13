@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
+import { QuestionText } from './QuestionText';
 import './history.css';
 
 export interface YearRange {
@@ -308,9 +309,9 @@ function QuestionCard(props: HistoryAppProps & { question: HistoryQuestion }) {
         <div className="history-backside">
           <span className="history-eyebrow">Historischer Fakt</span>
           <h3 tabIndex={-1} ref={factRef}>Wissen mit Zusammenhang</h3>
-          <p className="history-fact">{question.fact}</p>
+          <p className="history-fact"><QuestionText text={question.fact} allowedUrls={question.sources.map(source => source.url)} /></p>
           <h4>Einordnung</h4>
-          <p className="history-context">{question.explanation}</p>
+          <p className="history-context"><QuestionText text={question.explanation} allowedUrls={question.sources.map(source => source.url)} /></p>
           <h4>Quellen zum Weiterlesen</h4>
           <ul className="history-sources">
             {question.sources.map((source, index) => (

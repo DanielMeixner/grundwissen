@@ -47,7 +47,8 @@ test('actual answer, contextual reveal, reload and new attempt preserve atomic s
   expect((await snapshot(page)).lifetimeXp).toBe(10);
   await page.getByRole('button', { name: 'Fakt & Einordnung ansehen', exact: true }).click();
   await expect(page.getByText(question.fact, { exact: true })).toBeVisible();
-  await expect(page.getByText(question.explanation, { exact: true })).toBeVisible();
+  await expect(page.locator('.history-context')).toContainText(question.explanation.split('[')[0].trim());
+  await expect(page.locator('.history-context')).not.toContainText('](');
   await expect(page.getByRole('link', { name: `${question.sources[0].title} (öffnet in einem neuen Tab)`, exact: true }))
     .toHaveAttribute('href', question.sources[0].url);
   await page.reload();
