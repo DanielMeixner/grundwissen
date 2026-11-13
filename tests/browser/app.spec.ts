@@ -19,12 +19,17 @@ async function questionFor(page: Page) {
   return question;
 }
 
+function answerRadio(page: Page, text: string) {
+  const escaped = text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return page.getByRole('radio', { name: new RegExp(`^[A-D] ${escaped}$`) });
+}
+
 async function choose(page: Page, correct: boolean) {
   const question = await questionFor(page);
   const choice = question.choices.find(choice =>
     correct ? choice.id === question.correctChoiceId : choice.id !== question.correctChoiceId);
   if (!choice) throw new Error('Expected answer choice is missing');
-  await page.getByRole('radio', { name: choice.text, exact: true }).check();
+  await answerRadio(page, choice.text).check();
   await expect.poll(async () => (await snapshot(page)).currentAttempt?.selectedChoiceId).toBe(choice.id);
   await page.getByRole('button', { name: 'Antwort prüfen', exact: true }).click();
   await expect.poll(async () => (await snapshot(page)).currentAttempt?.phase).toBe('answered');
@@ -58,6 +63,114 @@ async function openSpecimen(page: Page, questionId: string) {
   return question;
 }
 
+test('mobile keyboard answers have question context, letters and stable feedback focus', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const question = await openSpecimen(page, 'gw-18-001');
+  await expect(page.getByRole('group', { name: `Wähle eine Antwort zur Frage: ${question.prompt}`, exact: true })).toBeVisible();
+  for (const [index, choice] of question.choices.entries()) {
+    await expect(page.getByRole('radio').nth(index)).toHaveAccessibleName(`${String.fromCharCode(65 + index)} ${choice.text}`);
+  }
+  const feedback = page.locator('.history-question [role="status"]');
+  await expect(feedback).toBeEmpty();
+  const feedbackNode = await feedback.elementHandle();
+  if (!feedbackNode) throw new Error('Feedback region must exist before an answer');
+  const skip = page.getByRole('link', { name: 'Zur aktuellen Frage', exact: true });
+  await skip.focus();
+  const skipBox = await skip.boundingBox();
+  expect(skipBox?.y).toBeGreaterThanOrEqual(0);
+  expect(skipBox?.height).toBeGreaterThanOrEqual(44);
+  await page.keyboard.press('Enter');
+  await expect(page.locator('#history-practice')).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(page.getByRole('radio').first()).toBeFocused();
+  await page.keyboard.press('ArrowDown');
+  await expect(page.getByRole('radio').nth(1)).toBeChecked();
+  await page.keyboard.press('ArrowUp');
+  await expect.poll(async () => (await snapshot(page)).currentAttempt?.selectedChoiceId).toBe(question.choices[0].id);
+  await page.keyboard.press('Tab');
+  await expect(page.getByRole('button', { name: 'Antwort prüfen', exact: true })).toBeFocused();
+  await page.keyboard.press('Enter');
+  const result = page.getByRole('heading', { name: 'Richtig beantwortet.', exact: true });
+  await expect(result).toBeFocused();
+  await expect(result).toHaveAccessibleDescription('Die richtige Antwort ist: Immanuel Kant.');
+  expect(await feedbackNode.evaluate(node => node === document.querySelector('.history-question [role="status"]'))).toBe(true);
+  await page.keyboard.press('Tab');
+  await expect(page.getByRole('button', { name: 'Fakt & Einordnung ansehen', exact: true })).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('heading', { name: 'Wissen mit Zusammenhang', exact: true })).toBeFocused();
+  const sourceTargets = await page.locator('.history-sources a').evaluateAll(links => links.map(link => {
+    const rect = link.getBoundingClientRect();
+    return { width: rect.width, height: rect.height, rowWidth: link.parentElement!.getBoundingClientRect().width };
+  }));
+  expect(sourceTargets.length).toBeGreaterThan(0);
+  for (const target of sourceTargets) {
+    expect(target.height).toBeGreaterThanOrEqual(44);
+    expect(target.width).toBe(target.rowWidth);
+  }
+  await page.locator('.history-about-disclosure > summary').click();
+  await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1);
+});
+
+test('mobile reset starts safely, describes data loss and cancels with Escape', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 667 });
+  await openSpecimen(page, 'gw-18-001');
+  await choose(page, true);
+  const saved = await snapshot(page);
+  await page.locator('.history-local-disclosure > summary').click();
+  const reset = page.getByRole('button', { name: 'Fortschritt zurücksetzen', exact: true });
+  await reset.focus();
+  await page.keyboard.press('Enter');
+  const cancel = page.getByRole('button', { name: 'Abbrechen', exact: true });
+  const confirm = page.getByRole('button', { name: 'Ja, Fortschritt löschen', exact: true });
+  await expect(cancel).toBeFocused();
+  await expect(cancel).toHaveAccessibleDescription(/Das kann nicht rückgängig gemacht werden/);
+  await page.keyboard.press('Tab');
+  await expect(confirm).toBeFocused();
+  await expect(confirm).toHaveAccessibleDescription(/Alle gespeicherten Antworten und XP/);
+  await page.keyboard.press('Escape');
+  await expect(reset).toBeFocused();
+  await expect(cancel).toHaveCount(0);
+  expect(await snapshot(page)).toEqual(saved);
+  await page.keyboard.press('Enter');
+  await cancel.click();
+  await expect(reset).toBeFocused();
+  expect(await snapshot(page)).toEqual(saved);
+});
+
+test('mobile initial storage warning describes focused question without stealing focus', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 568 });
+  await page.addInitScript(() => {
+    Object.defineProperty(window, 'localStorage', { get() { throw new DOMException('Denied', 'SecurityError'); } });
+  });
+  await page.goto('./');
+  const title = page.locator('.history-question-title');
+  await expect(title).toBeFocused();
+  await expect(title).toHaveAccessibleDescription(/Nur diese Sitzung: Fortschritt wird nicht dauerhaft gespeichert/);
+  await expect(page.locator('#history-storage-notice')).toContainText('Nur diese Sitzung:');
+  await page.getByRole('radio').first().check();
+  await expect(page.getByRole('radio').first()).toBeFocused();
+});
+
+test('mobile error fills an existing alert without moving answer focus', async ({ page }) => {
+  await page.setViewportSize({ width: 430, height: 932 });
+  await openSpecimen(page, 'gw-18-001');
+  const alert = page.getByRole('alert');
+  await expect(alert).toBeEmpty();
+  const alertNode = await alert.elementHandle();
+  if (!alertNode) throw new Error('Alert region must exist before an error');
+  await page.evaluate(storageKey => {
+    const raw = localStorage.getItem(storageKey);
+    if (!raw) throw new Error('Expected persisted snapshot');
+    const state = JSON.parse(raw);
+    state.revision = Number.MAX_SAFE_INTEGER;
+    localStorage.setItem(storageKey, JSON.stringify(state));
+  }, key);
+  await page.getByRole('radio').first().check();
+  await expect(alert).toContainText('Die maximale Fortschrittsrevision ist erreicht.');
+  await expect(page.getByRole('radio').first()).toBeFocused();
+  expect(await alertNode.evaluate(node => node === document.querySelector('[role="alert"]'))).toBe(true);
+});
+
 for (const viewport of [
   { width: 320, height: 568 }, { width: 375, height: 667 },
   { width: 390, height: 844 }, { width: 430, height: 932 },
@@ -77,6 +190,7 @@ for (const viewport of [
         titleFont: parseFloat(getComputedStyle(title).fontSize),
         answerFont: parseFloat(getComputedStyle(answer).fontSize),
         buttonFont: parseFloat(getComputedStyle(submit).fontSize),
+        radioSize: document.querySelector('.history-choice input')!.getBoundingClientRect().width,
         overflow: document.documentElement.scrollWidth > innerWidth,
         targetHeights: [...document.querySelectorAll('.history-choice, .history-disclosure > summary, .history-question .history-button')]
           .map(element => element.getBoundingClientRect().height),
@@ -86,6 +200,7 @@ for (const viewport of [
     expect(geometry.titleFont).toBeGreaterThanOrEqual(22);
     expect(geometry.answerFont).toBeGreaterThanOrEqual(18);
     expect(geometry.buttonFont).toBeGreaterThanOrEqual(16);
+    expect(geometry.radioSize).toBeGreaterThanOrEqual(24);
     expect(geometry.overflow).toBe(false);
     expect(Math.min(...geometry.targetHeights)).toBeGreaterThanOrEqual(44);
     if (viewport.width === 390) expect(geometry.submitBottom).toBeLessThanOrEqual(viewport.height);
@@ -198,7 +313,7 @@ test('custom inclusive year filter persists and invalid intervals do not widen i
   await page.reload();
   await expect(page.getByLabel('Von Jahr', { exact: true })).toHaveValue(String(year));
   await setRange(page, year + 1, year);
-  await expect(page.getByRole('alert')).toBeVisible();
+  await expect(page.locator('.history-filter').getByRole('alert')).toBeVisible();
   expect((await snapshot(page)).range).toEqual({ startYear: year, endYear: year });
 });
 
@@ -298,6 +413,7 @@ test('a singleton filter permits repeated fresh attempts to earn XP without infl
   await expect.poll(async () => (await snapshot(page)).currentAttempt?.id).not.toBe(firstAttempt.id);
   expect((await snapshot(page)).currentAttempt?.questionId).toBe(firstAttempt.questionId);
   await expect(page.getByRole('radio')).toHaveCount(4);
+  await expect(page.locator('.history-question-title')).toBeFocused();
   await choose(page, true);
   const state = await snapshot(page);
   expect(state.lifetimeXp).toBe(20);
@@ -318,7 +434,7 @@ test('quota failure announces unsaved session progress without overwriting the p
   await page.goto('./');
   const question = await questionFor(page);
   const choice = question.choices.find(choice => choice.id === question.correctChoiceId)!;
-  await page.getByRole('radio', { name: choice.text, exact: true }).check();
+  await answerRadio(page, choice.text).check();
   await page.getByRole('button', { name: 'Antwort prüfen', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Richtig beantwortet.', exact: true })).toBeVisible();
   await expect(page.getByText(/Nur diese Sitzung:/)).toBeVisible();
@@ -332,8 +448,8 @@ test('two real tabs cannot award the same attempt twice and synchronize feedback
   await second.goto('./');
   const question = await questionFor(page);
   const answer = question.choices.find(choice => choice.id === question.correctChoiceId)!;
-  await page.getByRole('radio', { name: answer.text, exact: true }).check();
-  await expect(second.getByRole('radio', { name: answer.text, exact: true })).toBeChecked();
+  await answerRadio(page, answer.text).check();
+  await expect(answerRadio(second, answer.text)).toBeChecked();
   await page.evaluate(async () => {
     let acquired: () => void = () => {};
     const ready = new Promise<void>(resolve => { acquired = resolve; });

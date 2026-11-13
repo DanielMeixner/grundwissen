@@ -281,14 +281,17 @@ function QuestionCard(props: HistoryAppProps & { question: HistoryQuestion }) {
           Sensibles Thema. Wir betrachten diese Geschichte sachlich und mit Respekt für die Betroffenen.
         </p>
       )}
-      <h2 id={`${id}-question`} ref={titleRef} tabIndex={-1} className="history-question-title">
+      <h2 id={`${id}-question`} ref={titleRef} tabIndex={-1} className="history-question-title"
+        aria-describedby={props.storageNotice ? 'history-storage-notice' : undefined}>
         {question.prompt}
       </h2>
       {!showingExplanation ? (
         <>
           <form onSubmit={(event) => { event.preventDefault(); if (!answered && selectedChoiceId !== null) onSubmit(); }}>
             <fieldset className="history-choices" disabled={answered}>
-              <legend>{answered ? 'Deine abgegebene Antwort' : 'Wähle eine Antwort'}</legend>
+              <legend>{answered ? 'Deine abgegebene Antwort' : 'Wähle eine Antwort'}
+                <span className="history-visually-hidden"> zur Frage: {question.prompt}</span>
+              </legend>
               {question.choices.map((choice, index) => {
                 const selected = choice.id === selectedChoiceId;
                 const correct = answered && choice.id === correctChoiceId;
@@ -298,7 +301,7 @@ function QuestionCard(props: HistoryAppProps & { question: HistoryQuestion }) {
                     className={`history-choice${selected ? ' is-selected' : ''}${correct ? ' is-correct' : ''}${wrong ? ' is-wrong' : ''}`}>
                     <input type="radio" name={`${id}-answer`} value={choice.id}
                       checked={selected} onChange={() => onSelectChoice(choice.id)} />
-                    <span className="history-choice-letter" aria-hidden="true">{String.fromCharCode(65 + index)}</span>
+                    <span className="history-choice-letter">{String.fromCharCode(65 + index)}</span>
                     <span className="history-choice-text">{choice.text}
                       {correct && <small>Richtige Antwort</small>}
                       {wrong && <small>Deine Antwort · nicht richtig</small>}
@@ -340,24 +343,26 @@ function QuestionCard(props: HistoryAppProps & { question: HistoryQuestion }) {
           {question.sources.length === 0 && <p>Für diese Frage sind keine Quellen hinterlegt.</p>}
         </div>
       )}
-      {answered && (
-        <>
-          <div className={`history-feedback${wasCorrect === false ? ' is-wrong' : ''}`} role="status" aria-live="polite">
-            <h3 ref={feedbackRef} tabIndex={-1}>
+      <div className={answered ? `history-feedback${wasCorrect === false ? ' is-wrong' : ''}` : undefined} role="status">
+        {answered && (
+          <>
+            <h3 ref={feedbackRef} tabIndex={-1} aria-describedby={`${id}-correct-answer`}>
               {wasCorrect === true ? 'Richtig beantwortet.' : wasCorrect === false ? 'Noch nicht richtig.' : 'Antwort abgegeben.'}
             </h3>
-            <p>{correctAnswer ? <>Die richtige Antwort ist: <strong>{correctAnswer.text}</strong>.</> : 'Die richtige Antwort ist derzeit nicht verfügbar.'}</p>
-          </div>
-          <div className="history-question-actions history-answer-actions">
-            <button type="button" className="history-button history-button-secondary"
-              aria-expanded={showingExplanation} onClick={() => setRevealed(!revealed)}>
-              {showingExplanation ? 'Zur Antwortseite' : 'Fakt & Einordnung ansehen'}
-            </button>
-            <button type="button" className="history-button history-button-primary" onClick={onNext}>
-              Nächste Frage <span aria-hidden="true">→</span>
-            </button>
-          </div>
-        </>
+            <p id={`${id}-correct-answer`}>{correctAnswer ? <>Die richtige Antwort ist: <strong>{correctAnswer.text}</strong>.</> : 'Die richtige Antwort ist derzeit nicht verfügbar.'}</p>
+          </>
+        )}
+      </div>
+      {answered && (
+        <div className="history-question-actions history-answer-actions">
+          <button type="button" className="history-button history-button-secondary"
+            aria-expanded={showingExplanation} onClick={() => setRevealed(!revealed)}>
+            {showingExplanation ? 'Zur Antwortseite' : 'Fakt & Einordnung ansehen'}
+          </button>
+          <button type="button" className="history-button history-button-primary" onClick={onNext}>
+            Nächste Frage <span aria-hidden="true">→</span>
+          </button>
+        </div>
       )}
     </section>
   );
@@ -365,10 +370,10 @@ function QuestionCard(props: HistoryAppProps & { question: HistoryQuestion }) {
 
 function LocalProgress({ onReset }: { onReset: () => void }) {
   const [confirming, setConfirming] = useState(false);
-  const confirmRef = useRef<HTMLButtonElement>(null);
+  const cancelRef = useRef<HTMLButtonElement>(null);
   const resetRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
-    if (confirming) confirmRef.current?.focus();
+    if (confirming) cancelRef.current?.focus();
   }, [confirming]);
   function cancel() {
     setConfirming(false);
@@ -385,12 +390,16 @@ function LocalProgress({ onReset }: { onReset: () => void }) {
       <button ref={resetRef} type="button" className="history-button history-button-quiet"
         onClick={() => setConfirming(true)} aria-expanded={confirming}>Fortschritt zurücksetzen</button>
       {confirming && (
-        <section className="history-reset-confirm" aria-label="Zurücksetzen bestätigen">
-          <h3>Lokalen Lernfortschritt wirklich löschen?</h3>
-          <p>Alle gespeicherten Antworten und XP in diesem Browser werden gelöscht. Das kann nicht rückgängig gemacht werden.</p>
+        <section className="history-reset-confirm" aria-labelledby="history-reset-title"
+          aria-describedby="history-reset-warning" onKeyDown={(event) => {
+            if (event.key === 'Escape') { event.preventDefault(); cancel(); }
+          }}>
+          <h3 id="history-reset-title">Lokalen Lernfortschritt wirklich löschen?</h3>
+          <p id="history-reset-warning">Alle gespeicherten Antworten und XP in diesem Browser werden gelöscht. Das kann nicht rückgängig gemacht werden.</p>
           <div className="history-confirm-actions">
-            <button type="button" className="history-button history-button-secondary" onClick={cancel}>Abbrechen</button>
-            <button ref={confirmRef} type="button" className="history-button history-button-primary"
+            <button ref={cancelRef} type="button" className="history-button history-button-secondary"
+              aria-describedby="history-reset-warning" onClick={cancel}>Abbrechen</button>
+            <button type="button" className="history-button history-button-primary" aria-describedby="history-reset-warning"
               onClick={() => {
                 onReset();
                 setConfirming(false);
@@ -406,6 +415,7 @@ function LocalProgress({ onReset }: { onReset: () => void }) {
 export function HistoryApp(props: HistoryAppProps) {
   useTheme();
   const compact = useCompactLayout();
+  const IntroHeading = compact ? 'h2' : 'h1';
   const filterRef = useRef<HTMLDetailsElement>(null);
   const { xp, attemptedCount, latestCorrectCount, totalQuestions, range, availableYearBounds, question, storageNotice, error } = props;
   const learningNote = (
@@ -421,7 +431,7 @@ export function HistoryApp(props: HistoryAppProps) {
       <section className="history-intro" aria-labelledby="history-page-title">
         <div>
           <span className="history-eyebrow">Deutsche Geschichte · ab 1701</span>
-          <h1 id="history-page-title">Ein Blick zurück.<br /><span>Ein Schritt nach vorn.</span></h1>
+          <IntroHeading id="history-page-title">Ein Blick zurück.<br /><span>Ein Schritt nach vorn.</span></IntroHeading>
           <p>Entdecke Zusammenhänge statt nur Jahreszahlen. Eine Frage nach der anderen, in deinem eigenen Tempo.</p>
         </div>
         <div className="history-intro-detail" aria-hidden="true">
@@ -433,8 +443,12 @@ export function HistoryApp(props: HistoryAppProps) {
   );
   const notices = (
     <div key="notices">
-      {storageNotice && <div className="history-notice" role="status"><strong>Lokaler Speicher</strong><p>{storageNotice}</p></div>}
-      {error && <div className="history-notice history-error" role="alert"><strong>Etwas ist schiefgegangen</strong><p>{error}</p></div>}
+      <div id="history-storage-notice" className={storageNotice ? 'history-notice' : undefined} role="status">
+        {storageNotice && <><strong>Lokaler Speicher</strong><p>{storageNotice}</p></>}
+      </div>
+      <div className={error ? 'history-notice history-error' : undefined} role="alert">
+        {error && <><strong>Etwas ist schiefgegangen</strong><p>{error}</p></>}
+      </div>
     </div>
   );
   const stats = (
