@@ -181,12 +181,14 @@ for (const viewport of [
     await openSpecimen(page, 'gw-18-001');
     const geometry = await page.evaluate(() => {
       const header = document.querySelector('.history-header')!.getBoundingClientRect();
+      const category = document.querySelector('.history-category')!.getBoundingClientRect();
       const practice = document.querySelector('.history-practice')!.getBoundingClientRect();
       const title = document.querySelector('.history-question-title')!;
       const answer = document.querySelector('.history-choice-text')!;
       const submit = document.querySelector('.history-question button[type="submit"]')!;
       return {
         top: practice.top + scrollY, headerBottom: header.bottom + scrollY,
+        categoryTop: category.top + scrollY, categoryBottom: category.bottom + scrollY,
         submitBottom: submit.getBoundingClientRect().bottom + scrollY,
         titleFont: parseFloat(getComputedStyle(title).fontSize),
         answerFont: parseFloat(getComputedStyle(answer).fontSize),
@@ -197,7 +199,8 @@ for (const viewport of [
           .map(element => element.getBoundingClientRect().height),
       };
     });
-    expect(geometry.top).toBeLessThanOrEqual(geometry.headerBottom + 24);
+    expect(geometry.categoryTop).toBeGreaterThanOrEqual(geometry.headerBottom);
+    expect(geometry.top).toBeLessThanOrEqual(geometry.categoryBottom + 24);
     expect(geometry.titleFont).toBeGreaterThanOrEqual(22);
     expect(geometry.answerFont).toBeGreaterThanOrEqual(18);
     expect(geometry.buttonFont).toBeGreaterThanOrEqual(16);
@@ -321,6 +324,31 @@ test('custom inclusive year filter persists and invalid intervals do not widen i
   await setRange(page, year + 1, year);
   await expect(page.locator('.history-filter').getByRole('alert')).toBeVisible();
   expect((await snapshot(page)).range).toEqual({ startYear: year, endYear: year });
+});
+
+test('civics is a separate persistent category, independent of the history filter', async ({ page }) => {
+  await page.goto('./');
+  const year = bank[0].startYear;
+  await setRange(page, year, year);
+  const selector = page.getByRole('combobox', { name: 'Lernbereich', exact: true });
+  await selector.selectOption('civics');
+  await expect.poll(async () => (await snapshot(page)).category).toBe('civics');
+  expect((await questionFor(page)).id).toMatch(/^pb-/);
+  await expect(page.getByLabel('Von Jahr', { exact: true })).toHaveCount(0);
+  await expect(page.locator('.history-question')).not.toContainText('2026');
+  await expect(page.getByRole('region', { name: 'Dein Überblick für Politische Bildung' })).toContainText('/ 22');
+  const question = await choose(page, true);
+  await expect(page.getByRole('heading', { name: 'Fakten und Einordnung', exact: true })).toBeVisible();
+  await expect(page.getByText(question.fact, { exact: true })).toBeVisible();
+  await page.reload();
+  await expect(selector).toHaveValue('civics');
+  await expect(page.getByText(question.fact, { exact: true })).toBeVisible();
+  expect((await snapshot(page)).lifetimeXp).toBe(10);
+  await selector.selectOption('history');
+  await expect.poll(async () => (await snapshot(page)).category).toBe('history');
+  expect((await snapshot(page)).range).toEqual({ startYear: year, endYear: year });
+  expect((await questionFor(page)).id).toMatch(/^gw-/);
+  expect((await snapshot(page)).lifetimeXp).toBe(10);
 });
 
 test('an eligible gap stays empty rather than resetting the filter', async ({ page }) => {

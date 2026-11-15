@@ -11,6 +11,19 @@ export function App({ bank, store }: { bank: QuestionBanks; store: ProgressStore
   const eligible = questionsFor(snapshot, bank);
   const question = eligible.find(question => question.id === attempt?.questionId);
   const progress = scopedProgress(snapshot, eligible);
+  const content = question && attempt ? {
+    id: question.id,
+    prompt: question.prompt,
+    fact: question.fact,
+    explanation: question.explanation,
+    sensitivity: question.sensitivity,
+    choices: attempt.choiceIds.map(id => {
+      const choice = question.choices.find(choice => choice.id === id);
+      if (!choice) throw new Error(`Invalid attempt choice: ${id}`);
+      return { id: choice.id, text: choice.text };
+    }),
+    sources: question.sources.map(({ title, publisher, url }) => ({ title, publisher, url })),
+  } : null;
 
   function dispatch(command: Command) {
     setError(null);
@@ -31,20 +44,9 @@ export function App({ bank, store }: { bank: QuestionBanks; store: ProgressStore
   }, [store]);
 
   return <HistoryApp
-    question={question && attempt ? {
-      id: question.id,
-      ...(snapshot.category === 'history' ? { startYear: question.startYear, endYear: question.endYear } : {}),
-      prompt: question.prompt,
-      fact: question.fact,
-      explanation: question.explanation,
-      sensitivity: question.sensitivity,
-      choices: attempt.choiceIds.map(id => {
-        const choice = question.choices.find(choice => choice.id === id);
-        if (!choice) throw new Error(`Invalid attempt choice: ${id}`);
-        return { id: choice.id, text: choice.text };
-      }),
-      sources: question.sources.map(({ title, publisher, url }) => ({ title, publisher, url })),
-    } : null}
+    question={content && question && snapshot.category === 'history'
+      ? { ...content, startYear: question.startYear, endYear: question.endYear }
+      : content}
     xp={snapshot.lifetimeXp}
     {...progress}
     totalQuestions={eligible.length}
