@@ -79,7 +79,7 @@ Danach folgen genau `## Frage`, `## Historischer Fakt` und `## Erklärung` in di
 
 ## GitHub Pages
 
-Der Workflow `.github/workflows/pages.yml` prueft jeden Branch-Push sowie `workflow_dispatch` mit `npm ci`, Unit-Tests, Inhaltsvalidierung, Typecheck, Produktionsbuild und Chromium-Browsertests. Nur ein erfolgreicher Stand von `main` wird im Environment `github-pages` veroeffentlicht. Der Build hat ausschliesslich Leserechte; erst der getrennte Deploy-Job bekommt `pages: write` und `id-token: write`. Konkurrenzlaeufe werden serialisiert. Vite verwendet den Projektpfad `/grundwissen/`.
+Der Workflow `.github/workflows/pages.yml` prueft jeden Branch-Push sowie `workflow_dispatch` mit `npm ci`, Unit-Tests, Inhaltsvalidierung, Typecheck, Produktionsbuild und Chromium-Browsertests. Der Pruefjob verwendet Ubuntu 24.04, da die gebundene Playwright-Version Ubuntu 26.04 nicht unterstuetzt. Nur ein erfolgreicher Stand von `main` wird im Environment `github-pages` veroeffentlicht. Der Build hat ausschliesslich Leserechte; erst der getrennte Deploy-Job bekommt `pages: write` und `id-token: write`. Konkurrenzlaeufe werden serialisiert. Vite verwendet den Projektpfad `/grundwissen/`.
 
 Das Pages-Artefakt wird bereits im erfolgreichen Pruefjob hochgeladen und pro Buildversuch eindeutig benannt. Der Deploy-Job uebernimmt diesen Namen als Job-Ausgabe und laedt nicht erneut hoch; ein wiederholter Deploy erzeugt dadurch keine konkurrierenden Artefakte desselben Namens.
 

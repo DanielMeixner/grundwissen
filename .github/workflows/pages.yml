@@ -13,7 +13,7 @@ concurrency:
 
 jobs:
   verify:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       pages_artifact_name: github-pages-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
