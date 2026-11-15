@@ -86,8 +86,9 @@ eine Lehrkraft oder eine wissenschaftliche Redaktion freigegeben. Die relevanten
 belegenden Abschnitte der 133 unterschiedlichen Quellenseiten des ursprünglichen
 Geschichtsbestands wurden am 13. November 2026 gelesen und mit den Aussagen
 abgeglichen. Eine erfolgreiche HTTP-Antwort allein wurde nicht als Beleg gewertet.
-Die 200 zusätzlichen Geschichtsfragen haben eigene Quellenangaben; ihr ergänzender
-Prüflauf zu Zeiträumen, Sensibilität und Kontext ist noch nicht abgeschlossen.
+Die 200 zusätzlichen Geschichtsfragen haben eigene Quellenangaben. Ein ergänzender
+Prüflauf zu Zeiträumen, Sensibilität und Kontext korrigierte 27 Einträge, darunter
+mehrere mehrjährige Ereignisse und die Einordnung des Siebenjährigen Kriegs.
 
 Für die bisherigen 22 Fragen zur politischen Bildung wurden die konkret verlinkten
 Artikel des Grundgesetzes und Paragraphen des Bundeswahlgesetzes am
