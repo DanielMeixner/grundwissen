@@ -5,6 +5,11 @@ je 40 unter `questions/18/`, `questions/19/`, `questions/20/` und `questions/21/
 Jede Frage ergänzt den überprüfbaren Fakt durch historischen Hintergrund,
 handelnde Personen oder Institutionen sowie Folgen oder Bedeutung.
 
+Daneben liegt unter `political-literacy/` ein eigenständiger Bestand von 22 Fragen
+zur politischen Bildung. Er behandelt die gegenwärtige Ordnung des Bundes statt
+einzelner historischer Ereignisse und gehört nicht zu den 160 Geschichtsfragen.
+Jede dieser Fragen trägt das gemeinsame Topic `Politische Bildung`.
+
 ## Datenvertrag
 
 Jede Markdown-Datei steht für genau eine Frage. Ihr YAML-Kopf enthält ausschließlich:
@@ -63,13 +68,30 @@ ist eine Überschneidung zu verwenden: `startYear <= bis && endYear >= von`.
 Vor 1871 werden die betreffenden historischen Staaten oder Territorien benannt;
 es wird kein bereits bestehender deutscher Nationalstaat vorausgesetzt.
 
+Für die getrennte Kategorie `Politische Bildung` bezeichnen beide Jahresfelder
+das Prüfjahr 2026: Es ist ein redaktioneller Stand, weder das Datum eines Ereignisses
+noch eine Aussage über den gesamten Geltungszeitraum einer Rechtsnorm. Diese Fragen
+sollen separat von den Geschichtsfragen gewählt und nicht als historische Ereignisse
+oder anhand eines Geschichts-Zeitfilters angezeigt werden. Die Rubrik
+`Historischer Fakt` enthält dort aufgrund des gemeinsamen Schemas den überprüften
+Sachverhalt zur geltenden Ordnung.
+
 ## Quellenprüfung und redaktioneller Status
 
 `reviewed` bedeutet **agentenseitig quellengeprüft**, nicht durch einen Menschen,
 eine Lehrkraft oder eine wissenschaftliche Redaktion freigegeben. Die relevanten
-belegenden Abschnitte der insgesamt 133 unterschiedlichen angegebenen Quellenseiten
+belegenden Abschnitte der insgesamt 133 unterschiedlichen Quellenseiten des
+ursprünglichen Geschichtsbestands
 wurden am 13. November 2026 gelesen und mit den Aussagen abgeglichen.
 Eine erfolgreiche HTTP-Antwort allein wurde nicht als Beleg gewertet.
+
+Für den Bestand zur politischen Bildung wurden die konkret verlinkten Artikel des
+Grundgesetzes und Paragraphen des Bundeswahlgesetzes am 15. November 2026 gelesen
+und mit den jeweiligen Aussagen abgeglichen. Der Text der Gesetze wird durch das
+Bundesamt für Justiz auf Gesetze im Internet bereitgestellt. Die Wahlrechtsregeln
+berücksichtigen die auf der Quellenseite ausgewiesene Entscheidung des
+Bundesverfassungsgerichts von 2024. Änderungen des Rechts erfordern eine erneute
+Prüfung; `reviewed` bedeutet auch hier keine menschliche Freigabe.
 
 | Jahrhundert | Fragen | Unterschiedliche Quellen-URLs | Beispiel für gelesene Belege |
 | --- | ---: | ---: | --- |
