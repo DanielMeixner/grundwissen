@@ -95,10 +95,10 @@ test('mobile keyboard answers have question context, letters and stable feedback
   await expect(result).toBeFocused();
   await expect(result).toHaveAccessibleDescription('Die richtige Antwort ist: Immanuel Kant.');
   expect(await feedbackNode.evaluate(node => node === document.querySelector('.history-question [role="status"]'))).toBe(true);
+  await expect(page.getByRole('heading', { name: 'Fakten und Einordnung', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Fakt & Einordnung ansehen', exact: true })).toHaveCount(0);
   await page.keyboard.press('Tab');
-  await expect(page.getByRole('button', { name: 'Fakt & Einordnung ansehen', exact: true })).toBeFocused();
-  await page.keyboard.press('Enter');
-  await expect(page.getByRole('heading', { name: 'Wissen mit Zusammenhang', exact: true })).toBeFocused();
+  await expect(page.locator('.history-backside a').first()).toBeFocused();
   const sourceTargets = await page.locator('.history-sources a').evaluateAll(links => links.map(link => {
     const rect = link.getBoundingClientRect();
     return { width: rect.width, height: rect.height, rowWidth: link.parentElement!.getBoundingClientRect().width };
@@ -251,12 +251,11 @@ test('mobile disclosures preserve filters, journey, score and reset access', asy
   await expect(page.getByLabel('Von Jahr', { exact: true })).toBeVisible();
 });
 
-test('long mobile context and resize keep reveal state and desktop composition', async ({ page }) => {
+test('long mobile context stays visible across resize with desktop composition preserved', async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 568 });
   await page.emulateMedia({ reducedMotion: 'reduce', colorScheme: 'dark' });
   await openSpecimen(page, 'gw-19-025');
   await choose(page, false);
-  await page.getByRole('button', { name: 'Fakt & Einordnung ansehen', exact: true }).click();
   await expect(page.locator('.history-context')).toBeVisible();
   expect(await page.locator('.history-context').evaluate(element => parseFloat(getComputedStyle(element).fontSize))).toBeGreaterThanOrEqual(18);
   expect(await page.locator('.history-backside').evaluate(element => getComputedStyle(element).animationName)).toBe('none');
@@ -276,7 +275,7 @@ test('long mobile context and resize keep reveal state and desktop composition',
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
 });
 
-test('actual answer, visible context, reload and new attempt preserve atomic scoring', async ({ page }) => {
+test('actual answer always reveals context and reload/new attempts preserve atomic scoring', async ({ page }) => {
   await page.goto('./');
   await expect(page.getByRole('button', { name: 'Antwort prüfen', exact: true })).toBeDisabled();
   const original = await snapshot(page);
@@ -284,6 +283,7 @@ test('actual answer, visible context, reload and new attempt preserve atomic sco
   await expect(page.getByRole('heading', { name: 'Richtig beantwortet.', exact: true })).toBeVisible();
   await expect(page.getByRole('radio').first()).toBeDisabled();
   expect((await snapshot(page)).lifetimeXp).toBe(10);
+  await expect(page.getByRole('heading', { name: 'Fakten und Einordnung', exact: true })).toBeVisible();
   await expect(page.getByText(question.fact, { exact: true })).toBeVisible();
   await expect(page.locator('.history-context')).toContainText(question.explanation.split('[')[0].trim());
   await expect(page.locator('.history-context')).not.toContainText('](');
@@ -291,14 +291,20 @@ test('actual answer, visible context, reload and new attempt preserve atomic sco
     .toHaveAttribute('href', question.sources[0].url);
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Richtig beantwortet.', exact: true })).toBeVisible();
+  await expect(page.locator('.history-context')).toBeVisible();
   const restored = await snapshot(page);
   expect(restored.lifetimeXp).toBe(10);
   expect(restored.currentAttempt?.id).toBe(original.currentAttempt?.id);
   expect(restored.currentAttempt?.choiceIds).toEqual(original.currentAttempt?.choiceIds);
   await page.getByRole('button', { name: 'Nächste Frage', exact: true }).click();
   await expect.poll(async () => (await snapshot(page)).currentAttempt?.id).not.toBe(original.currentAttempt?.id);
+  await expect(page.locator('.history-backside')).toHaveCount(0);
   await choose(page, false);
   await expect(page.getByRole('heading', { name: 'Noch nicht richtig.', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Fakten und Einordnung', exact: true })).toBeVisible();
+  await expect(page.locator('.history-fact')).toBeVisible();
+  await expect(page.locator('.history-context')).toBeVisible();
+  await expect(page.locator('.history-sources a').first()).toBeVisible();
   expect((await snapshot(page)).lifetimeXp).toBe(10);
 });
 

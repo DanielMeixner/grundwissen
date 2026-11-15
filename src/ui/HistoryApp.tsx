@@ -19,10 +19,10 @@ export interface HistorySource {
   url: string;
 }
 
-export interface HistoryQuestion {
+export type LearningCategory = 'history' | 'civics';
+
+interface QuestionContent {
   id: string;
-  startYear: number;
-  endYear: number;
   prompt: string;
   fact: string;
   explanation: string;
@@ -31,8 +31,22 @@ export interface HistoryQuestion {
   sources: HistorySource[];
 }
 
+export interface HistoryQuestion extends QuestionContent {
+  startYear: number;
+  endYear: number;
+}
+
+export interface CivicsQuestion extends QuestionContent {
+  startYear?: never;
+  endYear?: never;
+}
+
+export type LearningQuestion = HistoryQuestion | CivicsQuestion;
+
 export interface HistoryAppProps {
-  question: HistoryQuestion | null;
+  question: LearningQuestion | null;
+  category?: LearningCategory;
+  onCategoryChange?: (category: LearningCategory) => void;
   xp: number;
   attemptedCount: number;
   latestCorrectCount: number;
@@ -244,87 +258,91 @@ function Journey({ xp }: { xp: number }) {
   );
 }
 
-function QuestionCard(props: HistoryAppProps & { question: HistoryQuestion }) {
+function QuestionCard(props: HistoryAppProps & { question: LearningQuestion }) {
   const { question, phase, selectedChoiceId, correctChoiceId, wasCorrect, onSelectChoice, onSubmit, onNext } = props;
   const id = useId();
-  const [revealed, setRevealed] = useState(false);
   const titleRef = useRef<HTMLHeadingElement>(null);
   const feedbackRef = useRef<HTMLHeadingElement>(null);
-  const factRef = useRef<HTMLHeadingElement>(null);
   const answered = phase === 'answered';
-  const showingExplanation = answered && revealed;
+  const civics = props.category === 'civics';
   const sensitive = !['', 'none', 'normal', 'low', 'niedrig', 'standard'].includes(question.sensitivity.toLowerCase());
   const correctAnswer = question.choices.find((choice) => choice.id === correctChoiceId);
+  const questionLabel = civics ? 'Politische Bildung'
+    : typeof question.startYear === 'number' && typeof question.endYear === 'number'
+      ? yearLabel({ startYear: question.startYear, endYear: question.endYear }) : 'Geschichte';
 
   useEffect(() => {
     if (!answered) {
-      setRevealed(false);
       titleRef.current?.focus();
     }
   }, [question.id, answered]);
   useEffect(() => {
     if (answered) feedbackRef.current?.focus();
   }, [answered]);
-  useEffect(() => {
-    if (revealed) factRef.current?.focus();
-  }, [revealed]);
 
   return (
     <section className={`history-panel history-question${sensitive ? ' history-sensitive' : ''}`}
       aria-labelledby={`${id}-question`}>
       <div className="history-card-meta">
-        <span className="history-eyebrow">{showingExplanation ? 'Die Geschichte dahinter' : 'Eine Frage, ein neuer Blick'}</span>
-        <span className="history-year-tag">{yearLabel(question)}</span>
+        <span className="history-eyebrow">Eine Frage, ein neuer Blick</span>
+        <span className="history-year-tag">{questionLabel}</span>
       </div>
       {sensitive && (
         <p className="history-sensitivity">
-          Sensibles Thema. Wir betrachten diese Geschichte sachlich und mit Respekt für die Betroffenen.
+          Sensibles Thema. Wir betrachten dieses Thema sachlich und mit Respekt für die Betroffenen.
         </p>
       )}
       <h2 id={`${id}-question`} ref={titleRef} tabIndex={-1} className="history-question-title"
         aria-describedby={props.storageNotice ? 'history-storage-notice' : undefined}>
         {question.prompt}
       </h2>
-      {!showingExplanation ? (
-        <>
-          <form onSubmit={(event) => { event.preventDefault(); if (!answered && selectedChoiceId !== null) onSubmit(); }}>
-            <fieldset className="history-choices" disabled={answered}>
-              <legend>{answered ? 'Deine abgegebene Antwort' : 'Wähle eine Antwort'}
-                <span className="history-visually-hidden"> zur Frage: {question.prompt}</span>
-              </legend>
-              {question.choices.map((choice, index) => {
-                const selected = choice.id === selectedChoiceId;
-                const correct = answered && choice.id === correctChoiceId;
-                const wrong = answered && selected && wasCorrect === false;
-                return (
-                  <label key={choice.id}
-                    className={`history-choice${selected ? ' is-selected' : ''}${correct ? ' is-correct' : ''}${wrong ? ' is-wrong' : ''}`}>
-                    <input type="radio" name={`${id}-answer`} value={choice.id}
-                      checked={selected} onChange={() => onSelectChoice(choice.id)} />
-                    <span className="history-choice-letter">{String.fromCharCode(65 + index)}</span>
-                    <span className="history-choice-text">{choice.text}
-                      {correct && <small>Richtige Antwort</small>}
-                      {wrong && <small>Deine Antwort · nicht richtig</small>}
-                      {answered && selected && !wrong && <small>Deine Antwort</small>}
-                    </span>
-                  </label>
-                );
-              })}
-            </fieldset>
-            {!answered && (
-              <div className="history-question-actions">
-                <span className="history-small">In deinem Tempo. Ohne Zeitlimit.</span>
-                <button className="history-button history-button-primary" type="submit" disabled={selectedChoiceId === null}>
-                  Antwort prüfen <span aria-hidden="true">→</span>
-                </button>
-              </div>
-            )}
-          </form>
-        </>
-      ) : (
-        <div className="history-backside">
-          <span className="history-eyebrow">Historischer Fakt</span>
-          <h3 tabIndex={-1} ref={factRef}>Wissen mit Zusammenhang</h3>
+      <form onSubmit={(event) => { event.preventDefault(); if (!answered && selectedChoiceId !== null) onSubmit(); }}>
+        <fieldset className="history-choices" disabled={answered}>
+          <legend>{answered ? 'Deine abgegebene Antwort' : 'Wähle eine Antwort'}
+            <span className="history-visually-hidden"> zur Frage: {question.prompt}</span>
+          </legend>
+          {question.choices.map((choice, index) => {
+            const selected = choice.id === selectedChoiceId;
+            const correct = answered && choice.id === correctChoiceId;
+            const wrong = answered && selected && wasCorrect === false;
+            return (
+              <label key={choice.id}
+                className={`history-choice${selected ? ' is-selected' : ''}${correct ? ' is-correct' : ''}${wrong ? ' is-wrong' : ''}`}>
+                <input type="radio" name={`${id}-answer`} value={choice.id}
+                  checked={selected} onChange={() => onSelectChoice(choice.id)} />
+                <span className="history-choice-letter">{String.fromCharCode(65 + index)}</span>
+                <span className="history-choice-text">{choice.text}
+                  {correct && <small>Richtige Antwort</small>}
+                  {wrong && <small>Deine Antwort · nicht richtig</small>}
+                  {answered && selected && !wrong && <small>Deine Antwort</small>}
+                </span>
+              </label>
+            );
+          })}
+        </fieldset>
+        {!answered && (
+          <div className="history-question-actions">
+            <span className="history-small">In deinem Tempo. Ohne Zeitlimit.</span>
+            <button className="history-button history-button-primary" type="submit" disabled={selectedChoiceId === null}>
+              Antwort prüfen <span aria-hidden="true">→</span>
+            </button>
+          </div>
+        )}
+      </form>
+      <div className={answered ? `history-feedback${wasCorrect === false ? ' is-wrong' : ''}` : undefined} role="status">
+        {answered && (
+          <>
+            <h3 ref={feedbackRef} tabIndex={-1} aria-describedby={`${id}-correct-answer`}>
+              {wasCorrect === true ? 'Richtig beantwortet.' : wasCorrect === false ? 'Noch nicht richtig.' : 'Antwort abgegeben.'}
+            </h3>
+            <p id={`${id}-correct-answer`}>{correctAnswer ? <>Die richtige Antwort ist: <strong>{correctAnswer.text}</strong>.</> : 'Die richtige Antwort ist derzeit nicht verfügbar.'}</p>
+          </>
+        )}
+      </div>
+      {answered && (
+        <section className="history-backside" aria-labelledby={`${id}-context`}>
+          <h3 id={`${id}-context`}>Fakten und Einordnung</h3>
+          <h4>Fakt</h4>
           <p className="history-fact"><QuestionText text={question.fact} allowedUrls={question.sources.map(source => source.url)} /></p>
           <h4>Einordnung</h4>
           <p className="history-context"><QuestionText text={question.explanation} allowedUrls={question.sources.map(source => source.url)} /></p>
@@ -341,24 +359,10 @@ function QuestionCard(props: HistoryAppProps & { question: HistoryQuestion }) {
             ))}
           </ul>
           {question.sources.length === 0 && <p>Für diese Frage sind keine Quellen hinterlegt.</p>}
-        </div>
+        </section>
       )}
-      <div className={answered ? `history-feedback${wasCorrect === false ? ' is-wrong' : ''}` : undefined} role="status">
-        {answered && (
-          <>
-            <h3 ref={feedbackRef} tabIndex={-1} aria-describedby={`${id}-correct-answer`}>
-              {wasCorrect === true ? 'Richtig beantwortet.' : wasCorrect === false ? 'Noch nicht richtig.' : 'Antwort abgegeben.'}
-            </h3>
-            <p id={`${id}-correct-answer`}>{correctAnswer ? <>Die richtige Antwort ist: <strong>{correctAnswer.text}</strong>.</> : 'Die richtige Antwort ist derzeit nicht verfügbar.'}</p>
-          </>
-        )}
-      </div>
       {answered && (
         <div className="history-question-actions history-answer-actions">
-          <button type="button" className="history-button history-button-secondary"
-            aria-expanded={showingExplanation} onClick={() => setRevealed(!revealed)}>
-            {showingExplanation ? 'Zur Antwortseite' : 'Fakt & Einordnung ansehen'}
-          </button>
           <button type="button" className="history-button history-button-primary" onClick={onNext}>
             Nächste Frage <span aria-hidden="true">→</span>
           </button>
@@ -418,11 +422,26 @@ export function HistoryApp(props: HistoryAppProps) {
   const IntroHeading = compact ? 'h2' : 'h1';
   const filterRef = useRef<HTMLDetailsElement>(null);
   const { xp, attemptedCount, latestCorrectCount, totalQuestions, range, availableYearBounds, question, storageNotice, error } = props;
+  const category = props.category ?? 'history';
+  const civics = category === 'civics';
+  const scopeLabel = civics ? 'Politische Bildung' : yearLabel(range);
+  const categorySelector = props.onCategoryChange ? (
+    <div key="category" className="history-category">
+      <label htmlFor="history-category">Lernbereich</label>
+      <select id="history-category" value={category} onChange={(event) => {
+        const next = event.target.value;
+        if (next === 'history' || next === 'civics') props.onCategoryChange?.(next);
+      }}>
+        <option value="history">Geschichte</option>
+        <option value="civics">Politische Bildung</option>
+      </select>
+    </div>
+  ) : null;
   const learningNote = (
     <div className="history-learning-note">
       <span aria-hidden="true">↳</span>
-      <p><strong>Mehr als richtig oder falsch.</strong> Nach jeder Antwort findest du den historischen Fakt,
-        seine Einordnung und Quellen zum Weiterlesen – auch wenn du richtig liegst.</p>
+      <p><strong>Mehr als richtig oder falsch.</strong> Nach jeder Antwort bleiben Fakten und Einordnung
+        mit Quellen zum Weiterlesen sichtbar – auch wenn du richtig liegst.</p>
     </div>
   );
   const intro = (
@@ -430,9 +449,11 @@ export function HistoryApp(props: HistoryAppProps) {
       <summary>Über Grundwissen</summary>
       <section className="history-intro" aria-labelledby="history-page-title">
         <div>
-          <span className="history-eyebrow">Deutsche Geschichte · ab 1701</span>
-          <IntroHeading id="history-page-title">Ein Blick zurück.<br /><span>Ein Schritt nach vorn.</span></IntroHeading>
-          <p>Entdecke Zusammenhänge statt nur Jahreszahlen. Eine Frage nach der anderen, in deinem eigenen Tempo.</p>
+          <span className="history-eyebrow">{civics ? 'Politische Bildung · Deutschland' : 'Deutsche Geschichte · ab 1701'}</span>
+          <IntroHeading id="history-page-title">{civics ? 'Politik verstehen.' : 'Ein Blick zurück.'}<br />
+            <span>{civics ? 'Demokratie mitdenken.' : 'Ein Schritt nach vorn.'}</span>
+          </IntroHeading>
+          <p>{civics ? 'Verstehe Demokratie, Institutionen und politische Zusammenhänge.' : 'Entdecke Zusammenhänge statt nur Jahreszahlen.'} Eine Frage nach der anderen, in deinem eigenen Tempo.</p>
         </div>
         <div className="history-intro-detail" aria-hidden="true">
           <span>VERSTEHEN</span><div className="history-line-art"><i /><i /><i /><i /></div><span>WEITERDENKEN</span>
@@ -453,12 +474,12 @@ export function HistoryApp(props: HistoryAppProps) {
   );
   const stats = (
     <details key="stats" className="history-disclosure" open={!compact}>
-      <summary>Fortschritt im Zeitraum</summary>
-      <section className="history-stats" aria-label={`Dein Überblick für ${yearLabel(range)}`}>
+      <summary>{civics ? 'Fortschritt: Politische Bildung' : 'Fortschritt im Zeitraum'}</summary>
+      <section className="history-stats" aria-label={`Dein Überblick für ${scopeLabel}`}>
         <div><span className="history-stat-value">{formatNumber(xp)} <small>XP</small></span><span>Übung insgesamt</span></div>
         <div><span className="history-stat-value">{formatNumber(attemptedCount)} <small>/ {formatNumber(totalQuestions)}</small></span><span>Verschiedene Fragen beantwortet</span></div>
         <div><span className="history-stat-value">{formatNumber(latestCorrectCount)}</span><span>Zuletzt richtig beantwortet</span></div>
-        <p>Fragenzahlen gelten für {yearLabel(range)}. „Zuletzt richtig“ beschreibt die letzte Antwort je Frage, keine dauerhafte Beherrschung.</p>
+        <p>Fragenzahlen gelten für {scopeLabel}. „Zuletzt richtig“ beschreibt die letzte Antwort je Frage, keine dauerhafte Beherrschung.</p>
       </section>
     </details>
   );
@@ -467,26 +488,33 @@ export function HistoryApp(props: HistoryAppProps) {
       <div id="history-practice" className="history-practice" tabIndex={-1}>
         <div className="history-practice-heading">
           <h2>Dein nächster Gedankenschritt</h2>
-          <span>{yearLabel(range)}</span>
+          <span>{scopeLabel}</span>
         </div>
         {question && props.phase !== 'empty' ? (
-          <QuestionCard key={`${question.id}-${question.choices.map((choice) => choice.id).join('-')}`} {...props} question={question} />
+          <QuestionCard key={`${category}-${question.id}-${question.choices.map((choice) => choice.id).join('-')}`} {...props} question={question} />
         ) : (
           <section className="history-panel history-empty" aria-labelledby="history-empty-title">
             <span className="history-empty-symbol" aria-hidden="true">⌕</span>
             <h2 id="history-empty-title">{error ? 'Die Frage konnte nicht geladen werden.' : 'Hier gibt es gerade keine Frage.'}</h2>
-            <p>{error ? 'Beachte die Fehlermeldung oben. Du kannst den Zeitraum bewusst neu anwenden.' : `Für ${yearLabel(range)} ist keine Frage verfügbar. Wähle einen anderen Zeitraum und wende den Filter an.`}</p>
-            <a className="history-button history-button-secondary" href="#history-time-filter"
-              onClick={() => { if (filterRef.current) filterRef.current.open = true; }}>Zum Zeitfilter</a>
+            <p>{civics
+              ? error ? 'Beachte die Fehlermeldung oben.' : 'Für Politische Bildung ist gerade keine Frage verfügbar. Du kannst bewusst den Lernbereich wechseln.'
+              : error ? 'Beachte die Fehlermeldung oben. Du kannst den Zeitraum bewusst neu anwenden.' : `Für ${yearLabel(range)} ist keine Frage verfügbar. Wähle einen anderen Zeitraum und wende den Filter an.`}</p>
+            {civics ? props.onCategoryChange && (
+              <button type="button" className="history-button history-button-secondary"
+                onClick={() => props.onCategoryChange?.('history')}>Zur Geschichte wechseln</button>
+            ) : (
+              <a className="history-button history-button-secondary" href="#history-time-filter"
+                onClick={() => { if (filterRef.current) filterRef.current.open = true; }}>Zum Zeitfilter</a>
+            )}
           </section>
         )}
         {!compact && learningNote}
       </div>
       <aside className="history-sidebar">
-        <details ref={filterRef} className="history-disclosure history-filter-disclosure" open={!compact}>
+        {!civics && <details ref={filterRef} className="history-disclosure history-filter-disclosure" open={!compact}>
           <summary>Zeitraum: {yearLabel(range)}</summary>
           <RangeFilter range={range} bounds={availableYearBounds} onApply={props.onRangeChange} />
-        </details>
+        </details>}
         <details className="history-disclosure history-journey-disclosure" open={!compact}>
           <summary>Deine Lernreise</summary>
           <Journey xp={xp} />
@@ -506,14 +534,14 @@ export function HistoryApp(props: HistoryAppProps) {
       <header className="history-header">
         <a className="history-brand" href="#history-main" aria-label="Grundwissen · zum Hauptinhalt">
           <span className="history-brand-mark" aria-hidden="true">g<span>·</span></span>
-          <span>grundwissen<small>Geschichte verstehen.</small></span>
+          <span>grundwissen<small>{civics ? 'Politik verstehen.' : 'Geschichte verstehen.'}</small></span>
         </a>
         <span className="history-header-note">Wissen wächst mit jeder Frage.</span>
         <div className="history-xp-pill"><span aria-hidden="true">✦</span> {formatNumber(xp)} XP</div>
       </header>
       <main id="history-main" className="history-main">
-        {compact && <h1 className="history-visually-hidden">Grundwissen: Geschichte lernen</h1>}
-        {compact ? [notices, layout, stats, intro, local] : [intro, notices, stats, layout, local]}
+        {compact && <h1 className="history-visually-hidden">Grundwissen: {civics ? 'Politische Bildung' : 'Geschichte lernen'}</h1>}
+        {compact ? [categorySelector, notices, layout, stats, intro, local] : [intro, categorySelector, notices, stats, layout, local]}
       </main>
       <footer className="history-footer"><span>grundwissen · Eine offene Lernreise</span><span>Keine Uhr. Keine Leben. Kein Endspiel.</span></footer>
     </div>
