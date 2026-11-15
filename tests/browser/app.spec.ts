@@ -4,6 +4,7 @@ import { decodeSnapshot, freshSnapshot } from '../../src/domain/engine';
 import { validateBank } from '../../src/domain/question';
 
 const bank = validateBank(JSON.parse(readFileSync('src/generated/questions.json', 'utf8')));
+const civics = validateBank(JSON.parse(readFileSync('src/generated/civics.json', 'utf8')));
 const key = 'grundwissen.progress';
 
 async function snapshot(page: Page) {
@@ -14,7 +15,7 @@ async function snapshot(page: Page) {
 
 async function questionFor(page: Page) {
   const state = await snapshot(page);
-  const question = bank.find(question => question.id === state.currentAttempt?.questionId);
+  const question = [...bank, ...civics].find(question => question.id === state.currentAttempt?.questionId);
   if (!question) throw new Error('Current question is missing from bank');
   return question;
 }
@@ -275,7 +276,7 @@ test('long mobile context and resize keep reveal state and desktop composition',
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
 });
 
-test('actual answer, contextual reveal, reload and new attempt preserve atomic scoring', async ({ page }) => {
+test('actual answer, visible context, reload and new attempt preserve atomic scoring', async ({ page }) => {
   await page.goto('./');
   await expect(page.getByRole('button', { name: 'Antwort prüfen', exact: true })).toBeDisabled();
   const original = await snapshot(page);
@@ -283,7 +284,6 @@ test('actual answer, contextual reveal, reload and new attempt preserve atomic s
   await expect(page.getByRole('heading', { name: 'Richtig beantwortet.', exact: true })).toBeVisible();
   await expect(page.getByRole('radio').first()).toBeDisabled();
   expect((await snapshot(page)).lifetimeXp).toBe(10);
-  await page.getByRole('button', { name: 'Fakt & Einordnung ansehen', exact: true }).click();
   await expect(page.getByText(question.fact, { exact: true })).toBeVisible();
   await expect(page.locator('.history-context')).toContainText(question.explanation.split('[')[0].trim());
   await expect(page.locator('.history-context')).not.toContainText('](');
@@ -354,7 +354,6 @@ test('actual context reflows at 320px with doubled text and reduced motion', asy
   expect(await page.evaluate(() => document.documentElement.dataset.theme)).toBe('dark');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
   await choose(page, true);
-  await page.getByRole('button', { name: 'Fakt & Einordnung ansehen', exact: true }).click();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
   expect(await page.locator('.history-backside').evaluate(element => getComputedStyle(element).animationName)).toBe('none');
 });
@@ -408,7 +407,6 @@ test('a singleton filter permits repeated fresh attempts to earn XP without infl
   await expect.poll(async () => (await snapshot(page)).range).toEqual({ startYear: year, endYear: year });
   await choose(page, true);
   const firstAttempt = (await snapshot(page)).currentAttempt!;
-  await page.getByRole('button', { name: 'Fakt & Einordnung ansehen', exact: true }).click();
   await page.getByRole('button', { name: 'Nächste Frage', exact: true }).click();
   await expect.poll(async () => (await snapshot(page)).currentAttempt?.id).not.toBe(firstAttempt.id);
   expect((await snapshot(page)).currentAttempt?.questionId).toBe(firstAttempt.questionId);

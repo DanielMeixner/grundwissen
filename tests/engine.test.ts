@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  decodeSnapshot, freshSnapshot, reconcileSnapshot, scheduleRound, scopedProgress, transition,
+  decodeSnapshot, freshSnapshot, questionsFor, reconcileSnapshot, scheduleRound, scopedProgress, transition,
   type Snapshot,
 } from '../src/domain/engine';
 import { eligibleQuestions } from '../src/domain/question';
@@ -131,8 +131,37 @@ describe('explicit attempt scoring', () => {
     expect(snapshot.lifetimeXp).toBe(1050);
     expect(() => decodeSnapshot(JSON.stringify({ ...snapshot, lifetimeXp: 5 }))).toThrow();
     expect(() => decodeSnapshot(JSON.stringify({ ...snapshot, version: 99 }))).toThrow();
-    const { scoringPolicy: _, bankRevision: __, ...old } = snapshot;
+    const { scoringPolicy: _, bankRevision: __, category: ___, ...old } = snapshot;
     expect(decodeSnapshot(JSON.stringify({ ...old, version: 1 })).lifetimeXp).toBe(1050);
     expect(decodeSnapshot(JSON.stringify(snapshot))).toEqual(snapshot as Snapshot);
+  });
+  it('migrates history progress and isolates category scheduling from the history year filter', () => {
+    const history = questions(2);
+    const civics = questions(2).map((question, index) => ({
+      ...question, id: `civics-${index}`, startYear: 2026, endYear: 2026,
+    }));
+    const banks = { history, civics };
+    const env = environment();
+    let old = freshSnapshot(history, env);
+    old = transition(old, { type: 'answer', attemptId: old.currentAttempt!.id, choiceId: 'a' }, history, env);
+    const { category: _, ...previous } = old;
+    let state = reconcileSnapshot(decodeSnapshot(JSON.stringify({ ...previous, version: 2 })), banks, env);
+    expect(state.category).toBe('history');
+    expect(state.currentAttempt).toEqual(old.currentAttempt);
+    expect(state.lifetimeXp).toBe(10);
+    state = transition(state, { type: 'range', range: { startYear: 1701, endYear: 1701 } }, banks, env);
+    const historyAttempt = state.currentAttempt!;
+    state = transition(state, { type: 'category', category: 'civics' }, banks, env);
+    expect(questionsFor(state, banks)).toEqual(civics);
+    expect(state.currentAttempt!.questionId).toMatch(/^civics-/);
+    expect(transition(state, { type: 'answer', attemptId: historyAttempt.id, choiceId: 'a' }, banks, env)).toBe(state);
+    state = transition(state, { type: 'answer', attemptId: state.currentAttempt!.id, choiceId: 'a' }, banks, env);
+    expect(state.lifetimeXp).toBe(20);
+    expect(scopedProgress(state, civics)).toEqual({ attemptedCount: 1, latestCorrectCount: 1 });
+    expect(decodeSnapshot(JSON.stringify(state))).toEqual(state);
+    state = transition(state, { type: 'category', category: 'history' }, banks, env);
+    expect(state.range).toEqual({ startYear: 1701, endYear: 1701 });
+    expect(state.currentAttempt!.questionId).toBe('q0');
+    expect(state.lifetimeXp).toBe(20);
   });
 });

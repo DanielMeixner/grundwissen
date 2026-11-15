@@ -57,10 +57,16 @@ const snapshotFields = {
     correct: z.boolean(),
   }).strict()).max(100),
 };
-export const snapshotSchema = z.object({
+const versionTwoSchema = z.object({
   ...snapshotFields,
   version: z.literal(2),
   scoringPolicy: z.literal(SCORING_POLICY),
+}).strict();
+export const snapshotSchema = z.object({
+  ...snapshotFields,
+  version: z.literal(3),
+  scoringPolicy: z.literal(SCORING_POLICY),
+  category: z.enum(['history', 'civics']),
 }).strict().superRefine((snapshot, ctx) => {
   const total = Object.values(snapshot.progress).reduce((sum, entry) => sum + entry.correctAttempts * 10, 0);
   if (total !== snapshot.lifetimeXp) ctx.addIssue({ code: 'custom', message: 'XP and aggregates disagree' });
@@ -79,6 +85,9 @@ export const snapshotSchema = z.object({
 const { bankRevision: _bankRevision, ...versionOneFields } = snapshotFields;
 const versionOneSchema = z.object({ ...versionOneFields, version: z.literal(1) }).strict();
 export type Snapshot = z.infer<typeof snapshotSchema>;
+export type LearningCategory = Snapshot['category'];
+export type QuestionBanks = { history: Question[]; civics: Question[] };
+type BankInput = Question[] | QuestionBanks;
 export type Attempt = NonNullable<Snapshot['currentAttempt']>;
 export type Random = () => number;
 export type EngineEnvironment = { random: Random; uuid: () => string };
@@ -91,7 +100,11 @@ export function decodeSnapshot(raw: string): Snapshot {
   const value: unknown = JSON.parse(raw);
   if (typeof value === 'object' && value !== null && 'version' in value && value.version === 1) {
     const old = versionOneSchema.parse(value);
-    return snapshotSchema.parse({ ...old, version: 2, scoringPolicy: SCORING_POLICY, bankRevision: 'legacy' });
+    return snapshotSchema.parse({ ...old, version: 3, scoringPolicy: SCORING_POLICY, bankRevision: 'legacy', category: 'history' });
+  }
+  if (typeof value === 'object' && value !== null && 'version' in value && value.version === 2) {
+    const old = versionTwoSchema.parse(value);
+    return snapshotSchema.parse({ ...old, version: 3, category: 'history' });
   }
   return snapshotSchema.parse(value);
 }
@@ -105,8 +118,21 @@ export function shuffled<T>(values: readonly T[], random: Random): T[] {
   return result;
 }
 
-function bankRevision(bank: Question[]): string {
-  return JSON.stringify(bank.map(question => [question.id, question.contentRevision])
+function banksOf(bank: BankInput): QuestionBanks {
+  return Array.isArray(bank) ? { history: bank, civics: [] } : bank;
+}
+
+export function questionsFor(snapshot: Pick<Snapshot, 'category' | 'range'>, bank: BankInput): Question[] {
+  const banks = banksOf(bank);
+  return snapshot.category === 'history' ? eligibleQuestions(banks.history, snapshot.range) : banks.civics;
+}
+
+function bankRevision(bank: BankInput): string {
+  const banks = banksOf(bank);
+  return JSON.stringify([
+    ...banks.history.map(question => [question.id, question.contentRevision, 'history']),
+    ...banks.civics.map(question => [question.id, question.contentRevision, 'civics']),
+  ]
     .sort(([first], [second]) => first.localeCompare(second)));
 }
 
@@ -125,8 +151,8 @@ export function scheduleRound(
   return queue;
 }
 
-function startNext(snapshot: Snapshot, bank: Question[], env: EngineEnvironment): Snapshot {
-  const questions = eligibleQuestions(bank, snapshot.range);
+function startNext(snapshot: Snapshot, bank: BankInput, env: EngineEnvironment): Snapshot {
+  const questions = questionsFor(snapshot, bank);
   if (!questions.length) return { ...snapshot, queue: [], currentAttempt: null };
   const queue = snapshot.queue.length ? [...snapshot.queue] :
     scheduleRound(questions, snapshot.progress, snapshot.lastQuestionId, env.random);
@@ -149,16 +175,17 @@ function startNext(snapshot: Snapshot, bank: Question[], env: EngineEnvironment)
   };
 }
 
-export function freshSnapshot(bank: Question[], env = browserEnvironment): Snapshot {
+export function freshSnapshot(bank: BankInput, env = browserEnvironment): Snapshot {
   return startNext({
-    version: 2,
+    version: 3,
     scoringPolicy: SCORING_POLICY,
+    category: 'history',
     profileId: env.uuid(),
     bankRevision: bankRevision(bank),
     revision: 0,
     lifetimeXp: 0,
     progress: {},
-    range: availableBounds(bank),
+    range: availableBounds(banksOf(bank).history),
     queue: [],
     currentAttempt: null,
     lastQuestionId: null,
@@ -166,8 +193,8 @@ export function freshSnapshot(bank: Question[], env = browserEnvironment): Snaps
   }, bank, env);
 }
 
-export function reconcileSnapshot(snapshot: Snapshot, bank: Question[], env = browserEnvironment): Snapshot {
-  const questions = eligibleQuestions(bank, snapshot.range);
+export function reconcileSnapshot(snapshot: Snapshot, bank: BankInput, env = browserEnvironment): Snapshot {
+  const questions = questionsFor(snapshot, bank);
   const currentBankRevision = bankRevision(bank);
   const bankChanged = snapshot.bankRevision !== currentBankRevision;
   const base = { ...snapshot, bankRevision: currentBankRevision };
@@ -193,14 +220,19 @@ export type Command =
   | { type: 'answer'; attemptId: string; choiceId: string }
   | { type: 'next'; attemptId: string }
   | { type: 'range'; range: Range }
+  | { type: 'category'; category: LearningCategory }
   | { type: 'reset' };
 
 export function transition(
-  snapshot: Snapshot, command: Command, bank: Question[], env = browserEnvironment,
+  snapshot: Snapshot, command: Command, bank: BankInput, env = browserEnvironment,
 ): Snapshot {
   if (command.type === 'reset') return freshSnapshot(bank, env);
+  if (command.type === 'category') {
+    if (command.category === snapshot.category) return snapshot;
+    return startNext({ ...snapshot, category: command.category, queue: [], currentAttempt: null }, bank, env);
+  }
   if (command.type === 'range') {
-    eligibleQuestions(bank, command.range);
+    eligibleQuestions(banksOf(bank).history, command.range);
     return startNext({ ...snapshot, range: command.range, queue: [], currentAttempt: null }, bank, env);
   }
   const attempt = snapshot.currentAttempt;
@@ -213,7 +245,7 @@ export function transition(
   if (command.type === 'select') {
     return { ...snapshot, currentAttempt: { ...attempt, selectedChoiceId: command.choiceId } };
   }
-  const question = bank.find(question => question.id === attempt.questionId);
+  const question = questionsFor(snapshot, bank).find(question => question.id === attempt.questionId);
   if (!question || question.contentRevision !== attempt.contentRevision) throw new Error('Attempt content has changed');
   const correct = question.correctChoiceId === command.choiceId;
   const previous = snapshot.progress[question.id];

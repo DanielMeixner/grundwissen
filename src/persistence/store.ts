@@ -1,6 +1,6 @@
 import {
   browserEnvironment, decodeSnapshot, freshSnapshot, reconcileSnapshot, transition,
-  type Command, type EngineEnvironment, type Snapshot,
+  type Command, type EngineEnvironment, type QuestionBanks, type Snapshot,
 } from '../domain/engine';
 import type { Question } from '../domain/question';
 
@@ -24,7 +24,7 @@ export class ProgressStore {
   private listeners = new Set<() => void>();
 
   constructor(
-    private bank: Question[],
+    private bank: Question[] | QuestionBanks,
     private storage: StoragePort | null,
     private locks: LockPort | null,
     private env: EngineEnvironment = browserEnvironment,
@@ -234,7 +234,7 @@ function incrementRevision(revision: number): number {
   return revision + 1;
 }
 
-export function browserStore(bank: Question[]): ProgressStore {
+export function browserStore(bank: Question[] | QuestionBanks): ProgressStore {
   let storage: StoragePort | null = null;
   try { storage = window.localStorage; }
   catch { /* The store visibly explains unavailable browser storage. */ }

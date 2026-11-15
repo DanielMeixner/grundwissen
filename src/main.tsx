@@ -1,5 +1,6 @@
 import { createRoot } from 'react-dom/client';
 import rawBank from './generated/questions.json';
+import rawCivics from './generated/civics.json';
 import { App } from './App';
 import { validateBank } from './domain/question';
 import { browserStore } from './persistence/store';
@@ -11,7 +12,10 @@ root.render(<p role="status">Grundwissen wird geladen …</p>);
 
 async function initialize() {
   try {
-    const bank = validateBank(rawBank);
+    const history = validateBank(rawBank);
+    const civics = validateBank(rawCivics);
+    validateBank([...history, ...civics]);
+    const bank = { history, civics };
     const store = browserStore(bank);
     await store.initialize();
     root.render(<App bank={bank} store={store} />);

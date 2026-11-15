@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decodeSnapshot } from '../src/domain/engine';
+import { decodeSnapshot, freshSnapshot, transition } from '../src/domain/engine';
 import { consentedProgressExport } from '../src/persistence/import-adapter';
 import { ProgressStore, STORAGE_KEY, type LockPort, type StoragePort } from '../src/persistence/store';
 import { environment, questions } from './fixtures';
@@ -27,6 +27,24 @@ class SerialLocks implements LockPort {
 }
 
 describe('atomic browser profile persistence', () => {
+  it('migrates a persisted version 2 answered history attempt without losing XP or feedback', async () => {
+    const storage = new MemoryStorage();
+    const env = environment();
+    const history = questions(1);
+    let old = freshSnapshot(history, env);
+    old = transition(old, { type: 'answer', attemptId: old.currentAttempt!.id, choiceId: 'a' }, history, env);
+    const { category: _, ...previous } = old;
+    storage.raw = JSON.stringify({ ...previous, version: 2 });
+    const store = new ProgressStore({
+      history, civics: [{ ...history[0], id: 'civics-1', startYear: 2026, endYear: 2026 }],
+    }, storage, new SerialLocks(), env);
+    await store.initialize();
+    const migrated = decodeSnapshot(storage.raw!);
+    expect(migrated.version).toBe(3);
+    expect(migrated.category).toBe('history');
+    expect(migrated.currentAttempt).toEqual(old.currentAttempt);
+    expect(migrated.lifetimeXp).toBe(10);
+  });
   it('saves choice order/selection and answered XP in one reload-safe snapshot', async () => {
     const storage = new MemoryStorage();
     const locks = new SerialLocks();
@@ -83,6 +101,27 @@ describe('atomic browser profile persistence', () => {
     expect(second.getSnapshot().snapshot.progress.q0.attempts).toBe(1);
     await second.dispatch({ type: 'answer', attemptId: newAttempt.id, choiceId: 'a' });
     expect(decodeSnapshot(storage.raw!).lifetimeXp).toBe(20);
+  });
+  it('synchronizes category changes across tabs and rejects answers to the previous attempt', async () => {
+    const storage = new MemoryStorage();
+    const locks = new SerialLocks();
+    const env = environment();
+    const bank = {
+      history: questions(1),
+      civics: [{ ...questions(1)[0], id: 'civics-1', startYear: 2026, endYear: 2026 }],
+    };
+    const first = new ProgressStore(bank, storage, locks, env);
+    const second = new ProgressStore(bank, storage, locks, env);
+    await Promise.all([first.initialize(), second.initialize()]);
+    const oldAttempt = second.getSnapshot().snapshot.currentAttempt!;
+    await first.dispatch({ type: 'category', category: 'civics' });
+    await second.dispatch({ type: 'answer', attemptId: oldAttempt.id, choiceId: 'a' });
+    expect(second.getSnapshot().snapshot.category).toBe('civics');
+    expect(second.getSnapshot().snapshot.lifetimeXp).toBe(0);
+    await second.dispatch({ type: 'answer', attemptId: second.getSnapshot().snapshot.currentAttempt!.id, choiceId: 'a' });
+    await first.synchronize();
+    expect(first.getSnapshot().snapshot).toEqual(second.getSnapshot().snapshot);
+    expect(first.getSnapshot().snapshot.lifetimeXp).toBe(10);
   });
   it('does not award XP when the first of two conflicting tab answers is wrong', async () => {
     const storage = new MemoryStorage();

@@ -1,15 +1,15 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { HistoryApp } from './ui/HistoryApp';
-import { scopedProgress, type Command } from './domain/engine';
-import { availableBounds, eligibleQuestions, type Question } from './domain/question';
+import { questionsFor, scopedProgress, type Command, type QuestionBanks } from './domain/engine';
+import { availableBounds } from './domain/question';
 import { STORAGE_KEY, type ProgressStore } from './persistence/store';
 
-export function App({ bank, store }: { bank: Question[]; store: ProgressStore }) {
+export function App({ bank, store }: { bank: QuestionBanks; store: ProgressStore }) {
   const { snapshot, notice } = useSyncExternalStore(store.subscribe, store.getSnapshot);
   const [error, setError] = useState<string | null>(null);
   const attempt = snapshot.currentAttempt;
-  const question = bank.find(question => question.id === attempt?.questionId);
-  const eligible = eligibleQuestions(bank, snapshot.range);
+  const eligible = questionsFor(snapshot, bank);
+  const question = eligible.find(question => question.id === attempt?.questionId);
   const progress = scopedProgress(snapshot, eligible);
 
   function dispatch(command: Command) {
@@ -33,8 +33,7 @@ export function App({ bank, store }: { bank: Question[]; store: ProgressStore })
   return <HistoryApp
     question={question && attempt ? {
       id: question.id,
-      startYear: question.startYear,
-      endYear: question.endYear,
+      ...(snapshot.category === 'history' ? { startYear: question.startYear, endYear: question.endYear } : {}),
       prompt: question.prompt,
       fact: question.fact,
       explanation: question.explanation,
@@ -50,7 +49,8 @@ export function App({ bank, store }: { bank: Question[]; store: ProgressStore })
     {...progress}
     totalQuestions={eligible.length}
     range={snapshot.range}
-    availableYearBounds={availableBounds(bank)}
+    availableYearBounds={availableBounds(bank.history)}
+    category={snapshot.category}
     phase={attempt?.phase ?? 'empty'}
     selectedChoiceId={attempt?.selectedChoiceId ?? null}
     correctChoiceId={attempt?.phase === 'answered' ? question?.correctChoiceId ?? null : null}
@@ -69,6 +69,7 @@ export function App({ bank, store }: { bank: Question[]; store: ProgressStore })
       if (attempt) dispatch({ type: 'next', attemptId: attempt.id });
     }}
     onRangeChange={range => dispatch({ type: 'range', range })}
+    onCategoryChange={category => dispatch({ type: 'category', category })}
     onResetProgress={() => dispatch({ type: 'reset' })}
   />;
 }
