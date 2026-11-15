@@ -1,14 +1,17 @@
 # Historische Fragenbank
 
-Der Bestand enthält 160 eigenständig formulierte deutschsprachige ABCD-Fragen:
-je 40 unter `questions/18/`, `questions/19/`, `questions/20/` und `questions/21/`.
+Der historische Bestand enthält 360 eigenständig formulierte deutschsprachige
+ABCD-Fragen: je 90 zum 18., 19., 20. und 21. Jahrhundert. Die 160 bisherigen
+Fragen liegen unter `questions/`; weitere 200 Ereignisfragen liegen unter
+`deutschland-verstehen/` und ergänzen den Bestand mit je 50 Fragen pro Jahrhundert.
 Jede Frage ergänzt den überprüfbaren Fakt durch historischen Hintergrund,
 handelnde Personen oder Institutionen sowie Folgen oder Bedeutung.
 
-Daneben liegt unter `political-literacy/` ein eigenständiger Bestand von 22 Fragen
-zur politischen Bildung. Er behandelt die gegenwärtige Ordnung des Bundes statt
-einzelner historischer Ereignisse und gehört nicht zu den 160 Geschichtsfragen.
-Jede dieser Fragen trägt das gemeinsame Topic `Politische Bildung`.
+Daneben liegt unter `political-literacy/` ein eigenständiger Bestand von 222 Fragen
+zur politischen Bildung. Die 200 zusätzlichen Fragen ergänzen die bisherigen 22.
+Der Bestand behandelt die gegenwärtige Ordnung des Bundes statt einzelner
+historischer Ereignisse und gehört nicht zu den 360 Geschichtsfragen. Alle Fragen
+tragen das gemeinsame Topic `Politische Bildung` und den Prüfstand 2026.
 
 ## Datenvertrag
 
@@ -80,34 +83,36 @@ Sachverhalt zur geltenden Ordnung.
 
 `reviewed` bedeutet **agentenseitig quellengeprüft**, nicht durch einen Menschen,
 eine Lehrkraft oder eine wissenschaftliche Redaktion freigegeben. Die relevanten
-belegenden Abschnitte der insgesamt 133 unterschiedlichen Quellenseiten des
-ursprünglichen Geschichtsbestands
-wurden am 13. November 2026 gelesen und mit den Aussagen abgeglichen.
-Eine erfolgreiche HTTP-Antwort allein wurde nicht als Beleg gewertet.
+belegenden Abschnitte der 133 unterschiedlichen Quellenseiten des ursprünglichen
+Geschichtsbestands wurden am 13. November 2026 gelesen und mit den Aussagen
+abgeglichen. Eine erfolgreiche HTTP-Antwort allein wurde nicht als Beleg gewertet.
+Die 200 zusätzlichen Geschichtsfragen haben eigene Quellenangaben; ihr ergänzender
+Prüflauf zu Zeiträumen, Sensibilität und Kontext ist noch nicht abgeschlossen.
 
-Für den Bestand zur politischen Bildung wurden die konkret verlinkten Artikel des
-Grundgesetzes und Paragraphen des Bundeswahlgesetzes am 15. November 2026 gelesen
-und mit den jeweiligen Aussagen abgeglichen. Der Text der Gesetze wird durch das
-Bundesamt für Justiz auf Gesetze im Internet bereitgestellt. Die Wahlrechtsregeln
-berücksichtigen die auf der Quellenseite ausgewiesene Entscheidung des
-Bundesverfassungsgerichts von 2024. Änderungen des Rechts erfordern eine erneute
-Prüfung; `reviewed` bedeutet auch hier keine menschliche Freigabe.
+Für die bisherigen 22 Fragen zur politischen Bildung wurden die konkret verlinkten
+Artikel des Grundgesetzes und Paragraphen des Bundeswahlgesetzes am
+15. November 2026 gelesen und mit den jeweiligen Aussagen abgeglichen. Die 200
+zusätzlichen Politikfragen enthalten Quellenlinks; Verfügbarkeitsprüfungen waren
+für einige amtliche Gesetzesseiten nicht abschließend. Der Text der Gesetze wird
+durch das Bundesamt für Justiz auf Gesetze im Internet bereitgestellt. Änderungen
+des Rechts erfordern eine erneute Prüfung; `reviewed` bedeutet auch hier keine
+menschliche Freigabe.
 
 | Jahrhundert | Fragen | Unterschiedliche Quellen-URLs | Beispiel für gelesene Belege |
 | --- | ---: | ---: | --- |
-| 18. | 40 | 30 | [Bach-Museum: Bach in Leipzig](https://www.bachinleipzig.de/de/bach-museum/ausstellung/rueckblick/), [SPSG: Schloss Sanssouci](https://www.spsg.de/presse-foto-film/pressematerial-schloesser-gaerten-stiftung/potsdam/presse-material-schloss-sanssouci/) |
-| 19. | 40 | 36 | Institutionelle und wissenschaftliche Belege zu Staatenordnung, Sozialgesetzgebung, Kultur und Kolonialgeschichte |
-| 20. | 40 | 45 | LeMO und ergänzende unabhängige institutionelle Belege, insbesondere für NS-Verbrechen |
-| 21. | 40 | 22 | [Bundesbank: Euro-Bargeld](https://www.bundesbank.de/de/aufgaben/themen/das-euro-bargeld-wird-20--856394), [Bundestag: Eheöffnung 2017](https://www.bundestag.de/dokumente/protokolle/amtlicheprotokolle/ap18244-514228), [UNESCO: Bauhaus](https://whc.unesco.org/en/list/729) |
+| 18. | 90 | 49 | [Bach-Museum: Bach in Leipzig](https://www.bachinleipzig.de/de/bach-museum/ausstellung/rueckblick/), [SPSG: Schloss Sanssouci](https://www.spsg.de/presse-foto-film/pressematerial-schloesser-gaerten-stiftung/potsdam/presse-material-schloss-sanssouci/) |
+| 19. | 90 | 44 | Institutionelle und wissenschaftliche Belege zu Staatenordnung, Sozialgesetzgebung, Kultur und Kolonialgeschichte |
+| 20. | 90 | 56 | LeMO und ergänzende unabhängige institutionelle Belege, insbesondere für NS-Verbrechen |
+| 21. | 90 | 68 | [Bundesbank: Euro-Bargeld](https://www.bundesbank.de/de/aufgaben/themen/das-euro-bargeld-wird-20--856394), [Bundestag: Eheöffnung 2017](https://www.bundestag.de/dokumente/protokolle/amtlicheprotokolle/ap18244-514228), [UNESCO: Bauhaus](https://whc.unesco.org/en/list/729) |
+| Politische Bildung | 222 | 130 | [Bundesamt für Justiz: Grundgesetz, Artikel 44](https://www.gesetze-im-internet.de/gg/art_44.html), [Bundestag: Petitionsausschuss](https://www.bundestag.de/ausschuesse/a02_Petitionsausschuss) |
 
-Bei der Erstellung des Erstbestands bildeten je fünf Fragen pro Jahrhundert den
-20-Fragen-Piloten. Pilotfragen und anschließend der vollständige Bestand wurden
-gegen den Datenvertrag geprüft. Die späteren Ersatzfragen erhielten neue IDs und
-eine eigene Quellenprüfung; anschließend wurde erneut der vollständige Bestand
-validiert. Die Gesamtprüfung bestätigte Anzahl, eindeutige IDs und Fragetexte,
-YAML-Schlüssel, Datumsformate, Jahresgrenzen, vier verschiedene Optionen,
-Antwortreferenzen, Quellenfelder und Quellenzitate. Alle 15 mit `high` markierten
-Fragen enthalten Belege von mindestens zwei unterschiedlichen Herausgebern.
+Bei der Erstellung des ursprünglichen Geschichtsbestands bildeten je fünf Fragen
+pro Jahrhundert den 20-Fragen-Piloten. Die aktuelle Prüfung bestätigt 360
+Geschichtsfragen, 90 pro Jahrhundert, 222 Politikfragen mit Prüfstand 2026,
+eindeutige IDs über beide Bestände, YAML-Schlüssel, Datumsformate, Jahresgrenzen,
+vier verschiedene Optionen, Antwortreferenzen und verlinkte Quellenangaben. Alle
+26 aktuell mit `high` markierten Geschichtsfragen enthalten Belege von mindestens
+zwei unterschiedlichen Herausgebern.
 
 Ergänzende Abrufprüfungen konnten 130 der 133 Seiten direkt über Python/curl lesen.
 Zwei Britannica-Seiten und die UNESCO-Bauhausseite waren dort zeitweise gesperrt

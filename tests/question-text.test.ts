@@ -15,6 +15,16 @@ it('renders reviewed inline citations without changing surrounding factual conte
   expect(html).not.toContain('[Archiv]');
 });
 
+it('renders citations whose URLs contain balanced parentheses', () => {
+  const url = 'https://www.historisches-lexikon-bayerns.de/Lexikon/Wittelsbacher_(19./20._Jahrhundert)';
+  const html = renderToStaticMarkup(createElement(QuestionText, {
+    text: `Vor und nach der Quelle. [Wittelsbacher](${url}) Weiterer Kontext.`,
+    allowedUrls: [url],
+  }));
+  expect(html).toContain(`href="${url}"`);
+  expect(html).toContain('>Wittelsbacher</a> Weiterer Kontext.');
+});
+
 it('keeps HTML and unreviewed or executable links inert as escaped text', () => {
   const html = renderToStaticMarkup(createElement(QuestionText, {
     text: '<img src=x onerror=alert(1)> [X](javascript:alert) [Other](https://unreviewed.example/)',

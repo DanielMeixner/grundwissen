@@ -46,11 +46,12 @@ async function setRange(page: Page, start: number, end: number) {
   await page.getByRole('button', { name: 'Filter anwenden', exact: true }).click();
 }
 
-async function openSpecimen(page: Page, questionId: string) {
+async function openSpecimen(page: Page, questionId: string, filterToQuestion = false) {
   const question = bank.find(question => question.id === questionId);
   if (!question) throw new Error(`Missing mobile layout specimen: ${questionId}`);
   const state = freshSnapshot(bank);
   if (!state.currentAttempt) throw new Error('Expected an initial attempt');
+  if (filterToQuestion) state.range = { startYear: question.startYear, endYear: question.endYear };
   state.currentAttempt = {
     ...state.currentAttempt, questionId: question.id, contentRevision: question.contentRevision,
     choiceIds: question.choices.map(choice => choice.id),
@@ -287,7 +288,7 @@ test('actual answer always reveals context and reload/new attempts preserve atom
   await expect(page.getByRole('radio').first()).toBeDisabled();
   expect((await snapshot(page)).lifetimeXp).toBe(10);
   await expect(page.getByRole('heading', { name: 'Fakten und Einordnung', exact: true })).toBeVisible();
-  await expect(page.getByText(question.fact, { exact: true })).toBeVisible();
+  await expect(page.locator('.history-fact')).toHaveText(question.fact);
   await expect(page.locator('.history-context')).toContainText(question.explanation.split('[')[0].trim());
   await expect(page.locator('.history-context')).not.toContainText('](');
   await expect(page.getByRole('link', { name: `${question.sources[0].title} (öffnet in einem neuen Tab)`, exact: true }))
@@ -336,19 +337,39 @@ test('civics is a separate persistent category, independent of the history filte
   expect((await questionFor(page)).id).toMatch(/^pb-/);
   await expect(page.getByLabel('Von Jahr', { exact: true })).toHaveCount(0);
   await expect(page.locator('.history-question')).not.toContainText('2026');
-  await expect(page.getByRole('region', { name: 'Dein Überblick für Politische Bildung' })).toContainText('/ 22');
+  await expect(page.getByRole('region', { name: 'Dein Überblick für Politische Bildung' }))
+    .toContainText(`/ ${civics.length}`);
   const question = await choose(page, true);
   await expect(page.getByRole('heading', { name: 'Fakten und Einordnung', exact: true })).toBeVisible();
-  await expect(page.getByText(question.fact, { exact: true })).toBeVisible();
+  await expect(page.locator('.history-fact')).toHaveText(question.fact);
+  await expect(page.locator('.history-context'))
+    .toContainText(question.explanation.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1'));
+  await expect(page.locator('.history-sources a').first()).toHaveAttribute('href', question.sources[0].url);
   await page.reload();
   await expect(selector).toHaveValue('civics');
-  await expect(page.getByText(question.fact, { exact: true })).toBeVisible();
+  await expect(page.locator('.history-fact')).toHaveText(question.fact);
   expect((await snapshot(page)).lifetimeXp).toBe(10);
   await selector.selectOption('history');
   await expect.poll(async () => (await snapshot(page)).category).toBe('history');
   expect((await snapshot(page)).range).toEqual({ startYear: year, endYear: year });
-  expect((await questionFor(page)).id).toMatch(/^gw-/);
+  const historyQuestion = await questionFor(page);
+  expect(historyQuestion.startYear).toBeLessThanOrEqual(year);
+  expect(historyQuestion.endYear).toBeGreaterThanOrEqual(year);
   expect((await snapshot(page)).lifetimeXp).toBe(10);
+});
+
+test('newly authored event questions remain in the dated history category', async ({ page }) => {
+  const question = bank.find(question => question.id.startsWith('dv-h-'));
+  if (!question) throw new Error('Expected newly authored history questions in the historical bank');
+  await openSpecimen(page, question.id, true);
+  expect((await snapshot(page)).category).toBe('history');
+  expect((await snapshot(page)).range).toEqual({ startYear: question.startYear, endYear: question.endYear });
+  await expect(page.locator('.history-year-tag')).toHaveText(question.startYear === question.endYear
+    ? String(question.startYear) : `${question.startYear}–${question.endYear}`);
+  const answered = await choose(page, true);
+  expect(answered.id).toBe(question.id);
+  await expect(page.locator('.history-fact')).toHaveText(question.fact);
+  await expect(page.locator('.history-sources a').first()).toHaveAttribute('href', question.sources[0].url);
 });
 
 test('an eligible gap stays empty rather than resetting the filter', async ({ page }) => {
